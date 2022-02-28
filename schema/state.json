@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "State",
+  "type": "object",
+  "required": [
+    "anchor_market_contract"
+  ],
+  "properties": {
+    "anchor_market_contract": {
+      "type": "string"
+    }
+  }
+}
