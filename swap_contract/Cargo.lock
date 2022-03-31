@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "aust-swapper"
+name = "aust-escrow"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",

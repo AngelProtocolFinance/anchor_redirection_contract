@@ -1,5 +1,5 @@
 [package]
-name = "aust-swapper"
+name = "aust-escrow"
 version = "0.1.0"
 authors = ["Brian Lee <brianlee1597@gmail.com>"]
 edition = "2018"
