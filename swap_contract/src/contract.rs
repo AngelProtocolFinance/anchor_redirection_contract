@@ -24,23 +24,22 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Swap { percentage } => swap(deps, info, percentage),
+        ExecuteMsg::Swap { percentage, depositor } => swap(info, percentage, depositor),
     }
 }
 
 fn swap(
-    deps: DepsMut,
     info: MessageInfo,
     percentage: u16,
+    depositor: String,
 ) -> Result<Response, ContractError> {
     let ust_sent = must_pay(&info, "uusd")?;
-    let depositor = deps.api.addr_validate(&info.sender.as_str())?;
 
     let deposit_stable = AnchorExecuteMsg::DepositStable {};
     let anchor_deposit = WasmMsg::Execute {

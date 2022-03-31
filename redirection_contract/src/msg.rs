@@ -15,14 +15,17 @@ pub enum ExecuteMsg {
     DepositPool {
         percentage: u16,
     },
-    WithdrawPool {},
-    WithdrawCharity {},
+    // WithdrawPool {},
+    // WithdrawCharity {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AnchorExecuteMsg {
-    DepositStable {},
+pub enum EscrowMsg {
+    ExecuteSwap {
+        percentage: u16,
+        depositor: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Something went wrong in making new pool")]
+    MakeNewPoolError {},
+
     #[error("Percentage needs to be between 5% and 100%")]
     WrongPercentageInput {},
     

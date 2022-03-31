@@ -9,6 +9,7 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg {
     Swap {
         percentage: u16,
+        depositor: String,
     }
 }
 
