@@ -5,30 +5,19 @@
     {
       "type": "object",
       "required": [
-        "increment"
+        "swap"
       ],
       "properties": {
-        "increment": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "reset"
-      ],
-      "properties": {
-        "reset": {
+        "swap": {
           "type": "object",
           "required": [
-            "count"
+            "percentage"
           ],
           "properties": {
-            "count": {
+            "percentage": {
               "type": "integer",
-              "format": "int32"
+              "format": "uint16",
+              "minimum": 0.0
             }
           }
         }

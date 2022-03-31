@@ -6,8 +6,21 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
-    // Add any other custom errors you like here.
-    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    #[error("Hold up... this ain't swap.")]
+    NotSwap {},
+
+    #[error("Must send reserve token '{0}'")]
+    MissingDenom(String),
+
+    #[error("Received unsupported denom '{0}'")]
+    ExtraDenom(String),
+
+    #[error("Sent more than one denomination")]
+    MultipleDenoms {},
+
+    #[error("No funds sent")]
+    NoFunds {},
+
+    #[error("This message does no accept funds")]
+    NonPayable {},
 }
