@@ -1,11 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Coin, Uint128, WasmMsg, coin, Reply, SubMsgExecutionResponse, ContractResult};
+use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Coin, Uint128, WasmMsg, coin, Reply};
 use cw2::set_contract_version;
-use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, AnchorExecuteMsg};
+use crate::msg::{ExecuteMsg, AnchorExecuteMsg, InstantiateMsg};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:aust-swapper";
@@ -15,6 +14,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
+    _info: MessageInfo,
+    _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -22,30 +23,24 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) 
--> Result<Response, ContractError> {
-    match msg.id {
-        0 => send_aust(deps, env, msg.result),
-        _ => Err(ContractError::NotSwap {}),
-    }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
+    deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Swap { percentage } => swap(info, percentage),
+        ExecuteMsg::Swap { percentage } => swap(deps, info, percentage),
     }
 }
 
 fn swap(
+    deps: DepsMut,
     info: MessageInfo,
     percentage: u16,
 ) -> Result<Response, ContractError> {
     let ust_sent = must_pay(&info, "uusd")?;
+    let depositor = deps.api.addr_validate(&info.sender.as_str())?;
 
     let deposit_stable = AnchorExecuteMsg::DepositStable {};
     let anchor_deposit = WasmMsg::Execute {
@@ -55,42 +50,10 @@ fn swap(
     };
     
     Ok(Response::new()
-    .add_attribute("percentage", percentage.to_string())
-    .add_message(anchor_deposit))
-}
-
-fn send_aust(
-    _deps: DepsMut,
-    _env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-        match msg {
-        ContractResult::Ok(subcall) => {
-            let mut mint_amount = String::from("");
-            let mut depositor = String::from("");
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "mint_amount" {
-                        mint_amount = attrb.value;
-                    } else if attrb.key == "depositor" {
-                        depositor = attrb.value;
-                    }
-                }
-            }
-
-            let send_aust = WasmMsg::Execute {
-                contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: depositor,
-                    amount: mint_amount.parse::<Uint128>().unwrap(),
-                }).unwrap(),
-                funds: Vec::new(),
-            };
-            
-            Ok(Response::new().add_message(send_aust))
-        }
-        ContractResult::Err(_) => Err(ContractError::NotSwap {}),
-    }
+        .add_attribute("percentage", percentage.to_string())
+        .add_attribute("ust_depositor", depositor)
+        .add_message(anchor_deposit)
+    )
 }
 
 /// Requires exactly one denom sent, which matches the requested denom.
