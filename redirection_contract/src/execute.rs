@@ -215,6 +215,7 @@ fn update_pool (
     };
 
     return Ok(Response::new()
+        .add_attribute("to_angel", to_angel.to_string())
         .add_submessage(escrow_execute)
     )
 }
