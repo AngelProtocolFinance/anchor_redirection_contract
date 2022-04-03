@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,10 +22,23 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EscrowMsg {
-    ExecuteSwap {
+    DepositInitial {
         percentage: u16,
         depositor: String,
     },
+    DepositMore {
+        ust_sent: Uint128,
+        aust_amount: String,
+        percentage: u16,
+        depositor: String,
+    },
+    SwapBackUpdate {
+        to_angel: u64,
+        charity_address: String,
+        ust_amount: u64,
+        new_percentage: u64,
+        depositor: String,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

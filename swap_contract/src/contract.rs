@@ -1,10 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Coin, Uint128, WasmMsg, coin, Reply};
+use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Coin, Uint128, WasmMsg, coin, Reply, BankMsg};
 use cw2::set_contract_version;
+use cw20::Cw20ExecuteMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, AnchorExecuteMsg, InstantiateMsg};
+use crate::msg::{ExecuteMsg, AnchorExecuteMsg, InstantiateMsg, Cw20HookMsg};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:aust-swapper";
@@ -30,11 +31,15 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Swap { percentage, depositor } => swap(info, percentage, depositor),
+        ExecuteMsg::DepositInitial { percentage, depositor } => deposit_initial(info, percentage, depositor),
+        ExecuteMsg::DepositMore { ust_sent, aust_amount, percentage, depositor } 
+        => deposit_more(ust_sent, aust_amount, percentage, depositor),
+        ExecuteMsg::SwapBackUpdate { to_angel, charity_address, ust_amount, new_percentage, depositor }
+        => swap_back_aust(to_angel, charity_address, ust_amount, new_percentage, depositor)
     }
 }
 
-fn swap(
+fn deposit_initial(
     info: MessageInfo,
     percentage: u16,
     depositor: String,
@@ -51,6 +56,57 @@ fn swap(
     Ok(Response::new()
         .add_attribute("percentage", percentage.to_string())
         .add_attribute("ust_depositor", depositor)
+        .add_message(anchor_deposit)
+    )
+}
+
+fn deposit_more(
+    ust_sent: Uint128,
+    aust_amount: String,
+    percentage: u16,
+    depositor: String,
+) -> Result<Response, ContractError> {
+    let convert_to_ust = WasmMsg::Execute {
+        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
+        msg: to_binary(&Cw20ExecuteMsg::Send {
+            contract: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
+            msg: to_binary(&Cw20HookMsg::RedeemStable{}).unwrap(),
+            amount: Uint128::new(aust_amount.parse::<u128>().unwrap())
+        }).unwrap(),
+        funds: Vec::new()
+    };
+
+    Ok(Response::new()
+        .add_attribute("ust_sent", ust_sent)
+        .add_attribute("percentage", percentage.to_string())
+        .add_attribute("ust_depositor", depositor)
+        .add_message(convert_to_ust)
+    )
+}
+
+pub fn swap_back_aust(
+    to_angel: u64, 
+    charity_address: String,
+    ust_amount: u64, 
+    new_percentage: u64, 
+    depositor: String,
+) -> Result<Response, ContractError> {
+    let send_to_charity = BankMsg::Send { 
+        to_address: charity_address, 
+        amount: vec![coin(to_angel.into(), "uusd")]
+    };
+    let deposit_stable = AnchorExecuteMsg::DepositStable {};
+    let anchor_deposit = WasmMsg::Execute {
+        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
+        msg: to_binary(&deposit_stable)?,
+        funds: vec![coin(ust_amount.into(), "uusd")],
+    };
+    
+    Ok(Response::new()
+        .add_attribute("new_percentage", new_percentage.to_string())
+        .add_attribute("ust_depositor", depositor)
+        .add_attribute("ust_amount", ust_amount.to_string())
+        .add_message(send_to_charity)
         .add_message(anchor_deposit)
     )
 }
