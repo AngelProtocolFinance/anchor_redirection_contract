@@ -178,6 +178,8 @@ fn update_pool (
     let parsed_percentage =  percentage.parse::<u64>().unwrap();
 
     //what if i take the parsed, do ust_amount - ust_exchanged...?;
+    //this right below throws errors on low deposit amount because of aUST convert slightly 
+    //taking off the top
     let diff = parsed_ust_exchanged - parsed_ust_amount;
     let to_angel;
     if diff < 100 {
