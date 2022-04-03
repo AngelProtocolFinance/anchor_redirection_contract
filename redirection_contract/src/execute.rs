@@ -2,7 +2,7 @@ use cosmwasm_std::{Response, WasmMsg, to_binary, coin, SubMsg, CosmosMsg, ReplyO
 use crate::{ContractError, msg::EscrowMsg, state::{Pool, USER_INFO, STATE}, error::PaymentError};
 
 pub fn make_new_deposit(
-    swap_address: String,
+    escrow_controller: String,
     depositor: String,
     percentage: u16,
     ust_sent: u128,
@@ -13,7 +13,7 @@ pub fn make_new_deposit(
     };
 
     let native_swap_contact = WasmMsg::Execute {
-        contract_addr: swap_address,
+        contract_addr: escrow_controller,
         msg: to_binary(&execute_native_swap)?,
         funds: vec![coin(ust_sent, "uusd")],
     };
@@ -32,7 +32,7 @@ pub fn make_new_deposit(
 
 pub fn update_deposit(
     ust_sent: Uint128,
-    swap_address: String,
+    escrow_controller: String,
     depositor: String,
     percentage: u16,
     aust_amount: String,
@@ -45,7 +45,7 @@ pub fn update_deposit(
     };
 
     let native_swap_contact = WasmMsg::Execute {
-        contract_addr: swap_address,
+        contract_addr: escrow_controller,
         msg: to_binary(&aust_ust_swap)?,
         funds: vec![],
     };
@@ -183,15 +183,14 @@ fn update_pool (
     let signed_ust_exchanged = redeem_amount.parse::<i64>().unwrap();
     let signed_ust_amount = user_info.ust_amount.parse::<i64>().unwrap();
 
-    let to_angel;
-    let mut diff = 0;
-
-    if signed_ust_amount - signed_ust_exchanged > 0 {
-        to_angel = 0;
+    let diff;
+    if signed_ust_amount > signed_ust_exchanged {
+        diff = 0;
     } else {
         diff = parsed_ust_exchanged - parsed_ust_amount;
-        to_angel = (diff * parsed_prev_percentage) / 100;
     }
+
+    let to_angel = (diff * parsed_prev_percentage) / 100;
     
     let new_ust_amount = parsed_ust_exchanged - to_angel + parsed_deposit_amount;
     let new_percentage = 
@@ -207,7 +206,7 @@ fn update_pool (
     };
 
     let swapback = WasmMsg::Execute {
-        contract_addr: state.swap_contract,
+        contract_addr: state.escrow_controller,
         msg: to_binary(&ust_aust_swapback)?,
         funds: vec![coin(parsed_deposit_amount.into(), "uusd")],
     };
@@ -274,7 +273,7 @@ pub fn withdraw_deposit(
     let aust_amount = user_info.aust_amount;
     let ust_amount = user_info.ust_amount;
     let percentage = user_info.give_percentage;
-    let swap_address = STATE.load(deps.storage)?.swap_contract;
+    let escrow_controller = STATE.load(deps.storage)?.escrow_controller;
 
     let aust_ust_swap = EscrowMsg::WithdrawInitial { 
         withdraw_amount,
@@ -285,7 +284,7 @@ pub fn withdraw_deposit(
     };
 
     let swap_function = WasmMsg::Execute {
-        contract_addr: swap_address,
+        contract_addr: escrow_controller,
         msg: to_binary(&aust_ust_swap)?,
         funds: vec![],
     };
@@ -335,18 +334,21 @@ pub fn get_new_user_state(
             let percentage = USER_INFO.load(deps.storage, &ust_depositor)?.give_percentage;
             let parsed_percentage = percentage.parse::<u64>().unwrap();
 
-            let diff = parsed_redeem_amount - parsed_ust_amount;
-            let to_angel_amount;
-            if diff < 100 {
-                to_angel_amount = 0;
-            } else {
-                to_angel_amount = (diff * parsed_percentage) / 100;
-            };
+            let signed_ust_exchanged = redeem_amount.parse::<i64>().unwrap();
+            let signed_ust_amount = ust_amount.parse::<i64>().unwrap();
 
+            let diff;
+            if signed_ust_amount > signed_ust_exchanged {
+                diff = 0;
+            } else {
+                diff = parsed_redeem_amount - parsed_ust_amount;
+            }
+
+            let to_angel_amount = (diff * parsed_percentage) / 100;
             let new_ust_amount = parsed_redeem_amount - to_angel_amount - parsed_withdraw_amount;
 
             let state = STATE.load(deps.storage)?;
-            let swap_address = state.swap_contract;
+            let escrow_controller = state.escrow_controller;
             let charity_address = state.charity_address;
 
             let withdraw_and_send = EscrowMsg::WithdrawSend { 
@@ -358,7 +360,7 @@ pub fn get_new_user_state(
             };
         
             let withdraw_function = WasmMsg::Execute {
-                contract_addr: swap_address,
+                contract_addr: escrow_controller,
                 msg: to_binary(&withdraw_and_send)?,
                 funds: vec![],
             };

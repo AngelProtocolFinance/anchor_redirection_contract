@@ -23,7 +23,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = State {
-        swap_contract: msg.swap_contract,
+        escrow_controller: msg.escrow_controller,
         charity_address: msg.charity_address,
     };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -76,17 +76,17 @@ pub fn deposit_pool(
     };
 
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
-    let swap_address = STATE.load(deps.storage)?.swap_contract;
+    let escrow_controller = STATE.load(deps.storage)?.escrow_controller;
 
     if !USER_INFO.has(deps.storage, depositor.as_str()) 
     || USER_INFO.load(deps.storage, depositor.as_str())?.ust_amount.parse::<u64>().unwrap() < 1000 {
-        make_new_deposit(swap_address, depositor.to_string(), percentage, ust_sent.u128())
+        make_new_deposit(escrow_controller, depositor.to_string(), percentage, ust_sent.u128())
     } else {
         let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
 
         update_deposit(
             ust_sent, 
-            swap_address, 
+            escrow_controller, 
             depositor.to_string(), 
             percentage, 
             aust_amount
