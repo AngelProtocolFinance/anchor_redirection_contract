@@ -1,59 +1,28 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
-        "make_deposit_pool"
+        "deposit_pool"
       ],
       "properties": {
-        "make_deposit_pool": {
+        "deposit_pool": {
           "type": "object",
           "required": [
-            "msg"
+            "percentage"
           ],
           "properties": {
-            "msg": {
-              "$ref": "#/definitions/DepositUSTMsg"
+            "percentage": {
+              "type": "integer",
+              "format": "uint16",
+              "minimum": 0.0
             }
           }
         }
       },
       "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "withdraw_pool"
-      ],
-      "properties": {
-        "withdraw_pool": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "DepositUSTMsg": {
-      "type": "object",
-      "required": [
-        "genesis_time",
-        "percentage"
-      ],
-      "properties": {
-        "genesis_time": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "percentage": {
-          "type": "integer",
-          "format": "uint16",
-          "minimum": 0.0
-        }
-      }
-    }
-  }
+  ]
 }

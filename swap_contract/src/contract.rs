@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Coin, Uint128, WasmMsg, coin, Reply, BankMsg};
+use cosmwasm_std::{to_binary, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg, coin, BankMsg};
 use cw2::set_contract_version;
 use cw20::Cw20ExecuteMsg;
 
@@ -44,7 +44,7 @@ fn deposit_initial(
     percentage: u16,
     depositor: String,
 ) -> Result<Response, ContractError> {
-    let ust_sent = must_pay(&info, "uusd")?;
+    let ust_sent = check_funds(&info)?;
 
     let deposit_stable = AnchorExecuteMsg::DepositStable {};
     let anchor_deposit = WasmMsg::Execute {
@@ -101,61 +101,40 @@ pub fn swap_back_aust(
         msg: to_binary(&deposit_stable)?,
         funds: vec![coin(ust_amount.into(), "uusd")],
     };
-    
-    Ok(Response::new()
-        .add_attribute("new_percentage", new_percentage.to_string())
-        .add_attribute("ust_depositor", depositor)
-        .add_attribute("ust_amount", ust_amount.to_string())
-        .add_message(send_to_charity)
-        .add_message(anchor_deposit)
-    )
-}
 
-/// Requires exactly one denom sent, which matches the requested denom.
-/// Returns the amount if only one denom and non-zero amount. Errors otherwise.
-pub fn must_pay(info: &MessageInfo, denom: &str) -> Result<Uint128, ContractError> {
-    let coin = one_coin(info)?;
-    if coin.denom != denom {
-        Err(ContractError::MissingDenom(denom.to_string()))
+    if to_angel == 0 {
+        Ok(Response::new()
+            .add_attribute("new_percentage", new_percentage.to_string())
+            .add_attribute("ust_depositor", depositor)
+            .add_message(anchor_deposit)
+        )
     } else {
-        Ok(coin.amount)
+        Ok(Response::new()
+            .add_attribute("new_percentage", new_percentage.to_string())
+            .add_attribute("ust_depositor", depositor)
+            .add_message(send_to_charity)
+            .add_message(anchor_deposit)
+        )
     }
 }
 
-pub fn convert_str_int(str: String)
-    ->u128
-{
-    let bytes = str.into_bytes();
-    let mut res: u128 = 0;
-    let mut dot = false;
-    let mut dotbelow = 0;
-
-    for i in 0..bytes.len(){
-        if bytes[i] < 48{
-            dot = true;
-        }
-        else if dotbelow < 6 {
-            res = res * 10 + (bytes[i] - 48) as u128;
-            if dot {
-                dotbelow += 1;
-            }
-        }
-    }
-    return res;
-}
-
-/// If exactly one coin was sent, returns it regardless of denom.
-/// Returns error if 0 or 2+ coins were sent
-pub fn one_coin(info: &MessageInfo) -> Result<Coin, ContractError> {
+/// Requires exactly one native coin sent, which matches UUSD.
+/// Returns the amount if only one denom and non-zero amount. Errors otherwise.
+pub fn check_funds(info: &MessageInfo) -> Result<Uint128, ContractError> {
+    // check if only one coin was sent
     match info.funds.len() {
         0 => Err(ContractError::NoFunds {}),
         1 => {
-            let coin = &info.funds[0];
-            if coin.amount.is_zero() {
-                Err(ContractError::NoFunds {})
-            } else {
-                Ok(coin.clone())
+            let coin = info.funds[0].clone();
+            // check that we rcv'd uusd
+            if coin.denom != "uusd" {
+                return Err(ContractError::MissingDenom(coin.denom.to_string()));
             }
+            // check amount is gte 0
+            if coin.amount.is_zero() {
+                return Err(ContractError::NoFunds {});
+            }
+            Ok(coin.amount)
         }
         _ => Err(ContractError::MultipleDenoms {}),
     }

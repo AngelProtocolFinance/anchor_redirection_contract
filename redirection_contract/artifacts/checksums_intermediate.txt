@@ -1,0 +1,1 @@
+880d1dfd429f389b4da9cea0a2513a3dcd97566c5ef0bc6604a22c16e7d02b22  ./target/wasm32-unknown-unknown/release/give.wasm

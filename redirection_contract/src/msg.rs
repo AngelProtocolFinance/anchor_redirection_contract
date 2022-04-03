@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub anchor_market_contract: String,
-    pub aust_contract: String,
+    pub swap_contract: String,
     pub charity_address: String,
 }
 
