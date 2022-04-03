@@ -1,9 +1,11 @@
 use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::state::Config;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub admin: String,
     pub redirection_contract: String,
 }
 
@@ -11,7 +13,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     UpdateConfig {
-        redirection_contract: String,
+        config: Config,
     },
     DepositInitial {
         percentage: u16,

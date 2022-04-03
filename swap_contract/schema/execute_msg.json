@@ -5,15 +5,39 @@
     {
       "type": "object",
       "required": [
-        "swap"
+        "update_config"
       ],
       "properties": {
-        "swap": {
+        "update_config": {
           "type": "object",
           "required": [
+            "redirection_contract"
+          ],
+          "properties": {
+            "redirection_contract": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_initial"
+      ],
+      "properties": {
+        "deposit_initial": {
+          "type": "object",
+          "required": [
+            "depositor",
             "percentage"
           ],
           "properties": {
+            "depositor": {
+              "type": "string"
+            },
             "percentage": {
               "type": "integer",
               "format": "uint16",
@@ -23,6 +47,166 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_more"
+      ],
+      "properties": {
+        "deposit_more": {
+          "type": "object",
+          "required": [
+            "aust_amount",
+            "depositor",
+            "percentage",
+            "ust_sent"
+          ],
+          "properties": {
+            "aust_amount": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "integer",
+              "format": "uint16",
+              "minimum": 0.0
+            },
+            "ust_sent": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "swap_back_update"
+      ],
+      "properties": {
+        "swap_back_update": {
+          "type": "object",
+          "required": [
+            "charity_address",
+            "depositor",
+            "new_percentage",
+            "to_angel",
+            "ust_amount"
+          ],
+          "properties": {
+            "charity_address": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "new_percentage": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_angel": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "ust_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdraw_initial"
+      ],
+      "properties": {
+        "withdraw_initial": {
+          "type": "object",
+          "required": [
+            "aust_amount",
+            "depositor",
+            "percentage",
+            "ust_amount",
+            "withdraw_amount"
+          ],
+          "properties": {
+            "aust_amount": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "string"
+            },
+            "ust_amount": {
+              "type": "string"
+            },
+            "withdraw_amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdraw_send"
+      ],
+      "properties": {
+        "withdraw_send": {
+          "type": "object",
+          "required": [
+            "charity_address",
+            "new_ust_amount",
+            "to_angel_amount",
+            "ust_depositor",
+            "withdraw_amount"
+          ],
+          "properties": {
+            "charity_address": {
+              "type": "string"
+            },
+            "new_ust_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_angel_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "ust_depositor": {
+              "type": "string"
+            },
+            "withdraw_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
+    }
+  }
 }

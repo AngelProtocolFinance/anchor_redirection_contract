@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
+pub struct Config {
+    pub admin: String,
     pub escrow_controller: String,
     pub charity_address: String,
+    pub theta: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -20,6 +22,6 @@ pub struct CharityPool {
     pub aust_amount: String,
 }
 
-pub const STATE: Item<State> = Item::new("state");
+pub const CONFIG: Item<Config> = Item::new("state");
 pub const ANGEL_INFO: Item<CharityPool> = Item::new("angel_pool");
 pub const USER_INFO: Map<&str, Pool> = Map::new("user_pool");

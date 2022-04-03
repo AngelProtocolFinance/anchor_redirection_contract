@@ -21,6 +21,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let config = Config { 
+        admin: msg.admin,
         redirection_contract: msg.redirection_contract 
     };
     CONFIG.save(deps.storage, &config)?;
@@ -36,10 +37,11 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { 
-            redirection_contract 
+            config
         } => update_config(
             deps,
-            redirection_contract
+            info,
+            config,
         ),
         ExecuteMsg::DepositInitial {
             percentage, 

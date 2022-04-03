@@ -1,13 +1,19 @@
 use cosmwasm_std::{MessageInfo, Response, WasmMsg, to_binary, coin, Uint128, BankMsg, DepsMut};
 use cw20::Cw20ExecuteMsg;
-use crate::{ContractError, msg::{AnchorExecuteMsg, Cw20HookMsg}, state::CONFIG};
+use crate::{ContractError, msg::{AnchorExecuteMsg, Cw20HookMsg}, state::{CONFIG, Config}};
 
 pub fn update_config(
     deps: DepsMut,
-    redirection_contract: String
+    info: MessageInfo,
+    config: Config,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?.clone();
-    config.redirection_contract = redirection_contract;
+    let admin = CONFIG.load(deps.storage)?.admin;
+    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
+
+    if admin != sender {
+        return Err(ContractError::Unauthorized {})
+    };
+    
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }

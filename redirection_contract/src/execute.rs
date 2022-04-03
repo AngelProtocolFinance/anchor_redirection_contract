@@ -1,5 +1,21 @@
 use cosmwasm_std::{Response, WasmMsg, to_binary, coin, SubMsg, CosmosMsg, ReplyOn, Uint128, DepsMut, Env, ContractResult, SubMsgExecutionResponse, MessageInfo};
-use crate::{ContractError, msg::EscrowMsg, state::{Pool, USER_INFO, STATE}, error::PaymentError};
+use crate::{ContractError, msg::{EscrowMsg}, state::{Pool, USER_INFO, CONFIG, Config}, error::PaymentError};
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    config: Config,
+) -> Result<Response, ContractError> {
+    let admin = CONFIG.load(deps.storage)?.admin;
+    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
+
+    if admin != sender {
+        return Err(ContractError::Unauthorized {})
+    };
+    
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::default())
+}
 
 pub fn make_new_deposit(
     escrow_controller: String,
@@ -169,7 +185,7 @@ fn update_pool (
     ust_depositor: String,
 ) -> Result<Response, ContractError> {
     let user_info = USER_INFO.load(deps.storage, &ust_depositor)?;
-    let state = STATE.load(deps.storage)?;
+    let state = CONFIG.load(deps.storage)?;
 
     let parsed_ust_exchanged = redeem_amount.parse::<u64>().unwrap();
     let parsed_ust_amount = user_info.ust_amount.parse::<u64>().unwrap();
@@ -273,7 +289,7 @@ pub fn withdraw_deposit(
     let aust_amount = user_info.aust_amount;
     let ust_amount = user_info.ust_amount;
     let percentage = user_info.give_percentage;
-    let escrow_controller = STATE.load(deps.storage)?.escrow_controller;
+    let escrow_controller = CONFIG.load(deps.storage)?.escrow_controller;
 
     let aust_ust_swap = EscrowMsg::WithdrawInitial { 
         withdraw_amount,
@@ -347,7 +363,7 @@ pub fn get_new_user_state(
             let to_angel_amount = (diff * parsed_percentage) / 100;
             let new_ust_amount = parsed_redeem_amount - to_angel_amount - parsed_withdraw_amount;
 
-            let state = STATE.load(deps.storage)?;
+            let state = CONFIG.load(deps.storage)?;
             let escrow_controller = state.escrow_controller;
             let charity_address = state.charity_address;
 

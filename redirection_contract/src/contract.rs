@@ -5,10 +5,10 @@ use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::state::{State, STATE, USER_INFO};
+use crate::state::{Config, CONFIG, USER_INFO};
 use crate::execute::{
     make_new_deposit, update_deposit, deposit_more, 
-    update_user_struct, make_new_user_struct, check_funds, withdraw_deposit, get_new_user_state, update_user_struct_after_withdraw
+    update_user_struct, make_new_user_struct, check_funds, withdraw_deposit, get_new_user_state, update_user_struct_after_withdraw, update_config
 };
 
 // version info for migration info
@@ -22,12 +22,14 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
+    let state = Config {
+        admin: msg.admin,
         escrow_controller: msg.escrow_controller,
         charity_address: msg.charity_address,
+        theta: msg.theta,
     };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    STATE.save(deps.storage, &state)?;
+    CONFIG.save(deps.storage, &state)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate"))
@@ -53,6 +55,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateConfig { config }
+        => update_config(deps, info, config),
         ExecuteMsg::DepositPool { percentage,  } 
         => deposit_pool(deps, info, percentage),
         ExecuteMsg::WithdrawPool { withdraw_amount }
@@ -76,11 +80,13 @@ pub fn deposit_pool(
     };
 
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
-    let escrow_controller = STATE.load(deps.storage)?.escrow_controller;
+    let state = CONFIG.load(deps.storage)?;
+    let escrow_controller = state.escrow_controller;
+    let theta = state.theta;
     let no_user = !USER_INFO.has(deps.storage, depositor.as_str());
     let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
 
-    if no_user || aust_amount.parse::<u64>().unwrap() <= 10 {
+    if no_user || aust_amount.parse::<u64>().unwrap() <= theta {
         make_new_deposit(
             escrow_controller, 
             depositor.to_string(), 

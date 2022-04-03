@@ -2,15 +2,22 @@ use cosmwasm_std::{Decimal256, Uint256, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::Config;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub admin: String,
     pub escrow_controller: String,
     pub charity_address: String,
+    pub theta: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    UpdateConfig {
+        config: Config,
+    },
     DepositPool {
         percentage: u16,
     },

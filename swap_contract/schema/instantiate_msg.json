@@ -1,5 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
-  "type": "object"
+  "type": "object",
+  "required": [
+    "redirection_contract"
+  ],
+  "properties": {
+    "redirection_contract": {
+      "type": "string"
+    }
+  }
 }
