@@ -180,12 +180,17 @@ fn update_pool (
     //what if i take the parsed, do ust_amount - ust_exchanged...?;
     //this right below throws errors on low deposit amount because of aUST convert slightly 
     //taking off the top
-    let diff = parsed_ust_exchanged - parsed_ust_amount;
+    let signed_ust_exchanged = redeem_amount.parse::<i64>().unwrap();
+    let signed_ust_amount = user_info.ust_amount.parse::<i64>().unwrap();
+
     let to_angel;
-    if diff < 100 {
+    let mut diff = 0;
+
+    if signed_ust_amount - signed_ust_exchanged > 0 {
         to_angel = 0;
     } else {
-        to_angel = diff * (parsed_prev_percentage / 100);
+        diff = parsed_ust_exchanged - parsed_ust_amount;
+        to_angel = (diff * parsed_prev_percentage) / 100;
     }
     
     let new_ust_amount = parsed_ust_exchanged - to_angel + parsed_deposit_amount;
@@ -215,6 +220,7 @@ fn update_pool (
     };
 
     return Ok(Response::new()
+        .add_attribute("diff", diff.to_string())
         .add_attribute("to_angel", to_angel.to_string())
         .add_submessage(escrow_execute)
     )
@@ -334,7 +340,7 @@ pub fn get_new_user_state(
             if diff < 100 {
                 to_angel_amount = 0;
             } else {
-                to_angel_amount = diff * (parsed_percentage / 100);
+                to_angel_amount = (diff * parsed_percentage) / 100;
             };
 
             let new_ust_amount = parsed_redeem_amount - to_angel_amount - parsed_withdraw_amount;
