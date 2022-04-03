@@ -8,7 +8,9 @@ use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::{Config, CONFIG, USER_INFO};
 use crate::execute::{
     make_new_deposit, update_deposit, deposit_more, 
-    update_user_struct, make_new_user_struct, check_funds, withdraw_deposit, get_new_user_state, update_user_struct_after_withdraw, update_config
+    update_user_struct, make_new_user_struct, check_funds, 
+    withdraw_deposit, get_new_user_state, 
+    update_user_struct_after_withdraw, update_config
 };
 
 // version info for migration info
