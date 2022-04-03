@@ -193,14 +193,8 @@ fn update_pool (
     let parsed_prev_percentage = user_info.give_percentage.parse::<u64>().unwrap();
     let parsed_percentage =  percentage.parse::<u64>().unwrap();
 
-    //what if i take the parsed, do ust_amount - ust_exchanged...?;
-    //this right below throws errors on low deposit amount because of aUST convert slightly 
-    //taking off the top
-    let signed_ust_exchanged = redeem_amount.parse::<i64>().unwrap();
-    let signed_ust_amount = user_info.ust_amount.parse::<i64>().unwrap();
-
     let diff;
-    if signed_ust_amount > signed_ust_exchanged {
+    if parsed_ust_amount > parsed_ust_exchanged {
         diff = 0;
     } else {
         diff = parsed_ust_exchanged - parsed_ust_amount;
@@ -208,9 +202,10 @@ fn update_pool (
 
     let to_angel = (diff * parsed_prev_percentage) / 100;
     
-    let new_ust_amount = parsed_ust_exchanged - to_angel + parsed_deposit_amount;
+    let new_ust_amount = parsed_ust_exchanged + parsed_deposit_amount - to_angel;
     let new_percentage = 
-    ((parsed_ust_amount * parsed_prev_percentage) + (parsed_deposit_amount * parsed_percentage)) / 
+    ((parsed_ust_amount * parsed_prev_percentage) + 
+    (parsed_deposit_amount * parsed_percentage)) / 
     (parsed_ust_amount + parsed_deposit_amount);
 
     let ust_aust_swapback = EscrowMsg::SwapBackUpdate { 
@@ -350,11 +345,8 @@ pub fn get_new_user_state(
             let percentage = USER_INFO.load(deps.storage, &ust_depositor)?.give_percentage;
             let parsed_percentage = percentage.parse::<u64>().unwrap();
 
-            let signed_ust_exchanged = redeem_amount.parse::<i64>().unwrap();
-            let signed_ust_amount = ust_amount.parse::<i64>().unwrap();
-
             let diff;
-            if signed_ust_amount > signed_ust_exchanged {
+            if parsed_ust_amount > parsed_redeem_amount {
                 diff = 0;
             } else {
                 diff = parsed_redeem_amount - parsed_ust_amount;
