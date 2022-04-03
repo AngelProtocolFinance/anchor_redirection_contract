@@ -77,13 +77,17 @@ pub fn deposit_pool(
 
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
     let escrow_controller = STATE.load(deps.storage)?.escrow_controller;
+    let no_user = !USER_INFO.has(deps.storage, depositor.as_str());
+    let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
 
-    if !USER_INFO.has(deps.storage, depositor.as_str()) 
-    || USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount.parse::<u64>().unwrap() <= 1 {
-        make_new_deposit(escrow_controller, depositor.to_string(), percentage, ust_sent.u128())
+    if no_user || aust_amount.parse::<u64>().unwrap() <= 10 {
+        make_new_deposit(
+            escrow_controller, 
+            depositor.to_string(), 
+            percentage, 
+            ust_sent.u128()
+        )
     } else {
-        let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
-
         update_deposit(
             ust_sent, 
             escrow_controller, 
