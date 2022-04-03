@@ -24,6 +24,20 @@ pub enum ExecuteMsg {
         ust_amount: u64,
         new_percentage: u64,
         depositor: String,
+    },
+    WithdrawInitial {
+        withdraw_amount: Uint128,
+        aust_amount: String,
+        ust_amount: String, 
+        percentage: String,
+        depositor: String, 
+    },
+    WithdrawSend {
+        withdraw_amount: u64,
+        new_ust_amount: u64,
+        to_angel_amount: u64, 
+        ust_depositor: String,
+        charity_address: String,
     }
 }
 

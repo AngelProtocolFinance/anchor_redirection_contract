@@ -14,8 +14,9 @@ pub enum ExecuteMsg {
     DepositPool {
         percentage: u16,
     },
-    // WithdrawPool {},
-    // WithdrawCharity {},
+    WithdrawPool {
+        withdraw_amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -37,6 +38,20 @@ pub enum EscrowMsg {
         ust_amount: u64,
         new_percentage: u64,
         depositor: String,
+    },
+    WithdrawInitial {
+        withdraw_amount: Uint128,
+        aust_amount: String,
+        ust_amount: String, 
+        percentage: String,
+        depositor: String, 
+    },
+    WithdrawSend {
+        withdraw_amount: u64,
+        new_ust_amount: u64,
+        to_angel_amount: u64, 
+        ust_depositor: String,
+        charity_address: String,
     }
 }
 

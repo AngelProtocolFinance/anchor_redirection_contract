@@ -1,12 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Coin, Uint128, Reply};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Reply, Uint128};
 use cw2::set_contract_version;
 
-use crate::error::{ContractError, PaymentError};
-use crate::execute::{make_new_deposit, update_deposit, deposit_more, update_user_struct, make_new_user_struct};
+use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::{State, STATE, USER_INFO};
+use crate::execute::{
+    make_new_deposit, update_deposit, deposit_more, 
+    update_user_struct, make_new_user_struct, check_funds, withdraw_deposit, get_new_user_state, update_user_struct_after_withdraw
+};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:give";
@@ -36,6 +39,8 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
         0 => make_new_user_struct(deps, env, msg.result),
         1 => deposit_more(deps, env, msg.result),
         2 => update_user_struct(deps, env, msg.result),
+        3 => get_new_user_state(deps, env, msg.result),
+        4 => update_user_struct_after_withdraw(deps, env, msg.result),
         _ => Err(ContractError::Unauthorized {}),
     }
 }
@@ -50,10 +55,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::DepositPool { percentage,  } 
         => deposit_pool(deps, info, percentage),
-        // ExecuteMsg::WithdrawPool {}
-        // => withdraw_pool(deps, info),
-        // ExecuteMsg::WithdrawCharity {}
-        // => withdraw_charity(deps, info),
+        ExecuteMsg::WithdrawPool { withdraw_amount }
+        => withdraw_pool(deps, info, withdraw_amount),
     }
 }
 
@@ -67,11 +70,16 @@ pub fn deposit_pool(
     };
 
     let ust_sent = check_funds(&info)?;
+
+    if ust_sent.u128() < 1000 {
+        return Err(ContractError::MakeNewPoolError {})
+    };
+
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
     let swap_address = STATE.load(deps.storage)?.swap_contract;
 
     if !USER_INFO.has(deps.storage, depositor.as_str()) 
-    || USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount == "0" {
+    || USER_INFO.load(deps.storage, depositor.as_str())?.ust_amount.parse::<u64>().unwrap() < 1000 {
         make_new_deposit(swap_address, depositor.to_string(), percentage, ust_sent.u128())
     } else {
         let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
@@ -86,30 +94,22 @@ pub fn deposit_pool(
     }
 }
 
-pub fn coin(amount: u128, denom: impl Into<String>) -> Coin {
-    Coin::new(amount, denom)
-}
+pub fn withdraw_pool(
+    deps: DepsMut,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let depositor = deps.api.addr_validate(&info.sender.as_str())?;
 
-/// Requires exactly one native coin sent, which matches UUSD.
-/// Returns the amount if only one denom and non-zero amount. Errors otherwise.
-pub fn check_funds(info: &MessageInfo) -> Result<Uint128, PaymentError> {
-    // check if only one coin was sent
-    match info.funds.len() {
-        0 => Err(PaymentError::NoFunds {}),
-        1 => {
-            let coin = info.funds[0].clone();
-            // check that we rcv'd uusd
-            if coin.denom != "uusd" {
-                return Err(PaymentError::MissingDenom(coin.denom.to_string()));
-            }
-            // check amount is gte 0
-            if coin.amount.is_zero() {
-                return Err(PaymentError::NoFunds {});
-            }
-            Ok(coin.amount)
-        }
-        _ => Err(PaymentError::MultipleDenoms {}),
-    }
+    if !USER_INFO.has(deps.storage, depositor.as_str())  {
+        return Err(ContractError::NoDeposit {})
+    } 
+
+    withdraw_deposit(
+        deps,
+        amount,
+        depositor.to_string()
+    )
 }
 
 #[cfg(test)]

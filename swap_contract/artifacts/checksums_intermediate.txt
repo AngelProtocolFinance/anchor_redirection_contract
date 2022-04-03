@@ -1,2 +1,2 @@
-ed37bbdaf084d9727b0904697a262d6f4ea4d7952747adb5efe957f9373f9e83  ./target/wasm32-unknown-unknown/release/aust_escrow.wasm
+21bb476b7aa65c5566e6f0d0598d3ac36d7a08d51cd2b67e8386f07d34b48785  ./target/wasm32-unknown-unknown/release/aust_escrow.wasm
 5f3023cf2f9e96539dffa84dc7fb7c2f6cb59c363939d7b2d094d67a331267ab  ./target/wasm32-unknown-unknown/release/aust_swapper.wasm
