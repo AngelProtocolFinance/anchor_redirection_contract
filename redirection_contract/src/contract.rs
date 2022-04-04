@@ -99,7 +99,7 @@ pub fn deposit_pool(
         let user_info = USER_INFO.load(deps.storage, depositor.as_str())?;
         if user_info.aust_amount.parse::<u64>().unwrap() <= state.theta {
         /*
-        * Theta: Shoudl be capped around 0.001 aUST.
+        * Theta: Should be capped around 0.001 aUST.
         * When a user withdraws, it leaves tiny bits of dust
         * Triggering update deposit over < 0.001 aUST balance is a waste of gas
         * Added to save fees and keep escrow aUST balance as clean as possible.

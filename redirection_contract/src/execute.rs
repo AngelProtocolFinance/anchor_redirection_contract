@@ -281,6 +281,8 @@ pub fn withdraw_deposit(
     let percentage = user_info.give_percentage;
     let escrow_controller = CONFIG.load(deps.storage)?.escrow_controller;
 
+    //Add error here for withdrawing more than possibly available.
+
     Ok(Response::new()
         .add_submessage(SubMsg {
             id: 3,
