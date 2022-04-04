@@ -18,6 +18,30 @@ pub fn update_config(
     Ok(Response::default())
 }
 
+pub fn send_dust(
+    deps: DepsMut,
+    info: MessageInfo,
+    charity_address: String,
+    aust_amount: u64,
+) -> Result<Response, ContractError> {
+    let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
+    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
+    if sender != redirection_contract {
+        return Err(ContractError::Unauthorized{})
+    };
+
+    let cw20_transfer = WasmMsg::Execute {
+        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer { 
+        recipient: charity_address, 
+        amount: Uint128::from(aust_amount), 
+    }).unwrap(),
+        funds: Vec::new()
+    };
+
+    Ok(Response::new().add_message(cw20_transfer))
+}
+
 pub fn deposit_initial(
     deps: DepsMut,
     info: MessageInfo,

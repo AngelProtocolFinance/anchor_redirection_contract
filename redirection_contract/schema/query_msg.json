@@ -21,18 +21,6 @@
         }
       },
       "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "angel_info"
-      ],
-      "properties": {
-        "angel_info": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
     }
   ]
 }

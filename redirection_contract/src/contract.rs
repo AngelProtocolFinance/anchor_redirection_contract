@@ -7,10 +7,10 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::{Config, CONFIG, USER_INFO};
 use crate::execute::{
-    make_new_deposit, update_deposit, deposit_more, 
-    update_user_struct, make_new_user_struct, check_funds, 
-    withdraw_deposit, get_new_user_state, 
-    update_user_struct_after_withdraw, update_config
+    make_new_deposit, update_deposit, make_new_user_struct, 
+    check_funds, withdraw_deposit, update_config, get_new_user_state_dep, 
+    deposit_then_update_user, get_new_user_state_wit, withdraw_then_update_user, 
+    send_dust_to_angel_then_make_new_deposit
 };
 
 // version info for migration info
@@ -38,13 +38,16 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) 
+-> Result<Response, ContractError> {
     match msg.id {
         0 => make_new_user_struct(deps, env, msg.result),
-        1 => deposit_more(deps, env, msg.result),
-        2 => update_user_struct(deps, env, msg.result),
-        3 => get_new_user_state(deps, env, msg.result),
-        4 => update_user_struct_after_withdraw(deps, env, msg.result),
+
+        1 => get_new_user_state_dep(deps, env, msg.result),
+        2 => deposit_then_update_user(deps, env, msg.result),
+
+        3 => get_new_user_state_wit(deps, env, msg.result),
+        4 => withdraw_then_update_user(deps, env, msg.result),
         _ => Err(ContractError::Unauthorized {}),
     }
 }
@@ -76,7 +79,6 @@ pub fn deposit_pool(
     };
 
     let ust_sent = check_funds(&info)?;
-
     if ust_sent.u128() < 1000 {
         return Err(ContractError::MakeNewPoolError {})
     };
@@ -84,11 +86,9 @@ pub fn deposit_pool(
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
     let state = CONFIG.load(deps.storage)?;
     let escrow_controller = state.escrow_controller;
-    let theta = state.theta;
     let no_user = !USER_INFO.has(deps.storage, depositor.as_str());
-    let aust_amount = USER_INFO.load(deps.storage, depositor.as_str())?.aust_amount;
 
-    if no_user || aust_amount.parse::<u64>().unwrap() <= theta {
+    if no_user {
         make_new_deposit(
             escrow_controller, 
             depositor.to_string(), 
@@ -96,13 +96,31 @@ pub fn deposit_pool(
             ust_sent.u128()
         )
     } else {
-        update_deposit(
-            ust_sent, 
+        let user_info = USER_INFO.load(deps.storage, depositor.as_str())?;
+        if user_info.aust_amount.parse::<u64>().unwrap() <= state.theta {
+        /*
+        * Theta: Shoudl be capped around 0.001 aUST.
+        * When a user withdraws, it leaves tiny bits of dust
+        * Triggering update deposit over < 0.001 aUST balance is a waste of gas
+        * Added to save fees and keep escrow aUST balance as clean as possible.
+        */
+        send_dust_to_angel_then_make_new_deposit(
+            deps,
             escrow_controller, 
             depositor.to_string(), 
             percentage, 
-            aust_amount
+            ust_sent.u128(),
+            user_info,
         )
+        } else {
+            update_deposit(
+                ust_sent, 
+                escrow_controller, 
+                depositor.to_string(), 
+                percentage, 
+                user_info.aust_amount
+            )
+        }
     }
 }
 
@@ -112,7 +130,6 @@ pub fn withdraw_pool(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let depositor = deps.api.addr_validate(&info.sender.as_str())?;
-
     if !USER_INFO.has(deps.storage, depositor.as_str())  {
         return Err(ContractError::NoDeposit {})
     } 

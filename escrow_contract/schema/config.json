@@ -3,9 +3,13 @@
   "title": "Config",
   "type": "object",
   "required": [
+    "admin",
     "redirection_contract"
   ],
   "properties": {
+    "admin": {
+      "type": "string"
+    },
     "redirection_contract": {
       "type": "string"
     }

@@ -15,6 +15,10 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: Config,
     },
+    SendDust {
+        charity_address: String,
+        aust_amount: u64,
+    },
     DepositInitial {
         percentage: u16,
         depositor: String,

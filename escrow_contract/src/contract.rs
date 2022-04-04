@@ -4,7 +4,7 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::execute::{deposit_initial, deposit_more, swap_back_aust, swap_aust_ust, withdraw_send, update_config};
+use crate::execute::{deposit_initial, deposit_more, swap_back_aust, swap_aust_ust, withdraw_send, update_config, send_dust};
 use crate::state::{CONFIG, Config};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 
@@ -42,6 +42,15 @@ pub fn execute(
             deps,
             info,
             config,
+        ),
+        ExecuteMsg::SendDust {
+            charity_address,
+            aust_amount
+        } => send_dust(
+            deps,
+            info,
+            charity_address,
+            aust_amount
         ),
         ExecuteMsg::DepositInitial {
             percentage, 
