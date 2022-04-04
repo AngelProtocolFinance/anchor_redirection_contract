@@ -391,6 +391,10 @@ pub fn withdraw_then_update_user(
             }
 
             let mut tokens = USER_INFO.load(deps.storage, &ust_depositor)?;
+            if mint_amount.parse::<u64>().unwrap() < 1000 {
+                tokens.give_percentage = String::from("0");
+            }
+
             tokens.aust_amount = mint_amount;
             tokens.ust_amount = deposit_amount;
 

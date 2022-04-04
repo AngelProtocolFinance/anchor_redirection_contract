@@ -14,18 +14,9 @@ pub enum ContractError {
 
     #[error("Percentage needs to be between 5% and 100%")]
     WrongPercentageInput {},
-    
-    #[error("A Deposit Already Exists")]
-    MaxPooled {},
 
     #[error("No Deposits to Withdraw")]
     NoDeposit {},
-
-    #[error("No Balance to Withdraw")]
-    NoBalance {},
-
-    #[error("Only the charity address can withdraw angel pool")]
-    NotAngelAddr {},
 
     #[error("Wrong coin input")]
     Payment(#[from] PaymentError),
