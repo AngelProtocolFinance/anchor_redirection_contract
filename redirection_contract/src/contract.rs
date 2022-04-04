@@ -88,7 +88,7 @@ pub fn deposit_pool(
     let escrow_controller = state.escrow_controller;
     let no_user = !USER_INFO.has(deps.storage, depositor.as_str());
 
-    if no_user {
+    if no_user{
         make_new_deposit(
             escrow_controller, 
             depositor.to_string(), 
@@ -97,21 +97,29 @@ pub fn deposit_pool(
         )
     } else {
         let user_info = USER_INFO.load(deps.storage, depositor.as_str())?;
-        if user_info.aust_amount.parse::<u64>().unwrap() <= state.theta {
-        /*
-        * Theta: Should be capped around 0.001 aUST.
-        * When a user withdraws, it leaves tiny bits of dust
-        * Triggering update deposit over < 0.001 aUST balance is a waste of gas
-        * Added to save fees and keep escrow aUST balance as clean as possible.
-        */
-        send_dust_to_angel_then_make_new_deposit(
-            deps,
-            escrow_controller, 
-            depositor.to_string(), 
-            percentage, 
-            ust_sent.u128(),
-            user_info,
-        )
+        let aust_amount = user_info.aust_amount.parse::<u64>().unwrap();
+        if aust_amount == 0 {
+            make_new_deposit(
+                escrow_controller, 
+                depositor.to_string(), 
+                percentage, 
+                ust_sent.u128()
+            )
+        } else if aust_amount <= state.theta {
+            /*
+            * Theta: Should be capped around 0.001 aUST.
+            * When a user withdraws, it leaves tiny bits of dust
+            * Triggering update deposit over < 0.001 aUST balance is a waste of gas
+            * Added to save fees and keep escrow aUST balance as clean as possible.
+            */
+            send_dust_to_angel_then_make_new_deposit(
+                deps,
+                escrow_controller, 
+                depositor.to_string(), 
+                percentage, 
+                ust_sent.u128(),
+                user_info,
+            )
         } else {
             update_deposit(
                 ust_sent, 
