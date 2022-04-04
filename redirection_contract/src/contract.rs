@@ -88,7 +88,7 @@ pub fn deposit_pool(
     let escrow_controller = state.escrow_controller;
     let no_user = !USER_INFO.has(deps.storage, depositor.as_str());
 
-    if no_user{
+    if no_user {
         make_new_deposit(
             escrow_controller, 
             depositor.to_string(), 

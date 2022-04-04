@@ -348,7 +348,15 @@ pub fn get_new_user_state_wit(
 
             let to_angel_amount = (diff * percentage) / 100;
             //Below threw unreacheable error (I think) this needs to be always 0 or above;
-            let new_ust_amount = redeem_amount - to_angel_amount - withdraw_amount;
+            let new_ust_amount;
+            // if (redeem_amount as i64) - (to_angel_amount as i64) - (withdraw_amount as i64) <= 0 {
+            //     new_ust_amount = 0;
+            // } else {
+                //I think what is happening here with error is that because of frontend issue
+                //the withdraw amount was very close to the redeem amount which shouldn't be possible
+                //given the to_angel amount. causing unreachable. Need fix. think tomorrow.
+                new_ust_amount = redeem_amount - to_angel_amount - withdraw_amount;
+            // };
             let state = CONFIG.load(deps.storage)?;
 
             Ok(Response::new().add_submessage(SubMsg {
