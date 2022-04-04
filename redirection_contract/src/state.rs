@@ -17,11 +17,5 @@ pub struct Pool {
     pub aust_amount: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct CharityPool {
-    pub aust_amount: String,
-}
-
 pub const CONFIG: Item<Config> = Item::new("state");
-pub const ANGEL_INFO: Item<CharityPool> = Item::new("angel_pool");
 pub const USER_INFO: Map<&str, Pool> = Map::new("user_pool");
