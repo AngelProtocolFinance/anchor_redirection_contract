@@ -189,7 +189,12 @@ pub fn withdraw_send(
         funds: vec![coin(new_ust_amount.into(), "uusd")],
     };
 
-    if to_angel_amount == 0 {
+    if new_ust_amount == 0 {
+        Ok(Response::new()
+            .add_attribute("ust_depositor", ust_depositor)
+            .add_message(withdraw_to_user)
+        )
+    } else if to_angel_amount == 0 {
         Ok(Response::new()
             .add_attribute("ust_depositor", ust_depositor)
             .add_message(withdraw_to_user)

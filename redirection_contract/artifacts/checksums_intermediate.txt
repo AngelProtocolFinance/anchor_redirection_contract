@@ -1,1 +1,1 @@
-9b2aa4ef54553c3fb58d05f52ddfe2fab85df17798dc591d7f5b8de3a1388715  ./target/wasm32-unknown-unknown/release/give.wasm
+e06466c6a58c49803443f004d246c26ff39da3daa405832fbe44accdcb999bc6  ./target/wasm32-unknown-unknown/release/give.wasm

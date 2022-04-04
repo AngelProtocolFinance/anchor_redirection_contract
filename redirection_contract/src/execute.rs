@@ -335,14 +335,19 @@ pub fn get_new_user_state_wit(
             .parse::<u64>()
             .unwrap();
 
+            if withdraw_amount >= redeem_amount {
+                withdraw_amount = redeem_amount;
+            }
+
             let diff;
-            if ust_amount > redeem_amount {
+            if ust_amount > redeem_amount || withdraw_amount >= redeem_amount {
                 diff = 0;
             } else {
                 diff = redeem_amount - ust_amount;
             }
 
             let to_angel_amount = (diff * percentage) / 100;
+            //Below threw unreacheable error (I think) this needs to be always 0 or above;
             let new_ust_amount = redeem_amount - to_angel_amount - withdraw_amount;
             let state = CONFIG.load(deps.storage)?;
 
@@ -375,8 +380,8 @@ pub fn withdraw_then_update_user(
     match msg {
         ContractResult::Ok(subcall) => {
             let mut ust_depositor = String::from("");
-            let mut deposit_amount = String::from("");
-            let mut mint_amount = String::from("");
+            let mut deposit_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
+            let mut mint_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
 
             for event in subcall.events {
                 for attrb in event.attributes {
@@ -391,7 +396,8 @@ pub fn withdraw_then_update_user(
             }
 
             let mut tokens = USER_INFO.load(deps.storage, &ust_depositor)?;
-            if mint_amount.parse::<u64>().unwrap() < 1000 {
+            let theta = CONFIG.load(deps.storage)?.theta;
+            if mint_amount.parse::<u64>().unwrap() < theta {
                 tokens.give_percentage = String::from("0");
             }
 
