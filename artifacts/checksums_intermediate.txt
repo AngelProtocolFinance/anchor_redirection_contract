@@ -1,0 +1,2 @@
+60877036b5307b1bd7216b16a7654a2796066d9afff4210402c14c8bd44cbfb0  target/wasm32-unknown-unknown/release/aust_escrow.wasm
+a85ae1fa969f708e84579a1d66c17c7f263e8cf50fe21e20f291a7163a2096aa  target/wasm32-unknown-unknown/release/give.wasm
