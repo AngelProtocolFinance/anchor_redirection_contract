@@ -1,2 +1,2 @@
-60877036b5307b1bd7216b16a7654a2796066d9afff4210402c14c8bd44cbfb0  target/wasm32-unknown-unknown/release/aust_escrow.wasm
-a85ae1fa969f708e84579a1d66c17c7f263e8cf50fe21e20f291a7163a2096aa  target/wasm32-unknown-unknown/release/give.wasm
+bcbb5197e8c68e1220df6e5d9c7704088d7d24d1a5c80c38aa453edba46538f7  target/wasm32-unknown-unknown/release/aust_escrow.wasm
+bab0dbd6e3719c005f05e020327a98d330281c5e0c953e8f37ea9b1677fd6ad6  target/wasm32-unknown-unknown/release/give.wasm
