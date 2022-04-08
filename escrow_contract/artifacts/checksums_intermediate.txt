@@ -1,1 +1,0 @@
-3e8f1af2cceb8d9b0f8bb3b86e73cc999be6ef6507148709c8d95b964ba59ccc  ./target/wasm32-unknown-unknown/release/aust_escrow.wasm
