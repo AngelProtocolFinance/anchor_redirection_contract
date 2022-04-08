@@ -1,20 +1,26 @@
-use cosmwasm_std::{MessageInfo, Response, WasmMsg, to_binary, coin, Uint128, BankMsg, DepsMut};
+use crate::{
+    msg::{AnchorExecuteMsg, Cw20HookMsg, UpdateConfigMsg},
+    state::CONFIG,
+    ContractError,
+};
+use cosmwasm_std::{coin, to_binary, BankMsg, DepsMut, MessageInfo, Response, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
-use crate::{ContractError, msg::{AnchorExecuteMsg, Cw20HookMsg}, state::{CONFIG, Config}};
 
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    config: Config,
+    msg: UpdateConfigMsg,
 ) -> Result<Response, ContractError> {
-    let admin = CONFIG.load(deps.storage)?.admin;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
+    let mut config = CONFIG.load(deps.storage)?;
 
-    if admin != sender {
-        return Err(ContractError::Unauthorized {})
+    if info.sender.ne(&config.admin) {
+        return Err(ContractError::Unauthorized {});
     };
-    
+
+    config.admin = deps.api.addr_validate(&msg.admin)?;
+    config.redirection_contract = deps.api.addr_validate(&msg.redirection_contract)?;
     CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::default())
 }
 
@@ -25,21 +31,22 @@ pub fn send_dust(
     aust_amount: u64,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
 
-    let cw20_transfer = WasmMsg::Execute {
-        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer { 
-        recipient: charity_address, 
-        amount: Uint128::from(aust_amount), 
-    }).unwrap(),
-        funds: Vec::new()
-    };
+    let charity_contract = deps.api.addr_validate(&charity_address)?.to_string();
 
-    Ok(Response::new().add_message(cw20_transfer))
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"), // Should not hardcode this! Move to config.
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: charity_contract,
+            amount: Uint128::from(aust_amount),
+        })
+        .unwrap(),
+        funds: Vec::new(),
+    }))
 }
 
 pub fn deposit_initial(
@@ -49,25 +56,24 @@ pub fn deposit_initial(
     depositor: String,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
 
     let ust_sent = check_funds(&info)?;
 
     let deposit_stable = AnchorExecuteMsg::DepositStable {};
     let anchor_deposit = WasmMsg::Execute {
-        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
+        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"), // Should not hardcode this! Move to config.
         msg: to_binary(&deposit_stable)?,
         funds: vec![coin(ust_sent.u128(), "uusd")],
     };
-    
+
     Ok(Response::new()
         .add_attribute("percentage", percentage.to_string())
         .add_attribute("ust_depositor", depositor)
-        .add_message(anchor_deposit)
-    )
+        .add_message(anchor_deposit))
 }
 
 pub fn deposit_more(
@@ -79,59 +85,53 @@ pub fn deposit_more(
     depositor: String,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
+
     let convert_to_ust = get_convert_to_ust(aust_amount);
 
     Ok(Response::new()
         .add_attribute("ust_sent", ust_sent)
         .add_attribute("percentage", percentage.to_string())
         .add_attribute("ust_depositor", depositor)
-        .add_message(convert_to_ust)
-    )
+        .add_message(convert_to_ust))
 }
 
 pub fn swap_back_aust(
     deps: DepsMut,
     info: MessageInfo,
-    to_angel: u64, 
+    to_angel: bool,
     charity_address: String,
-    ust_amount: u64, 
-    new_percentage: u64, 
+    ust_amount: u64,
+    new_percentage: u64,
     depositor: String,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
-    };
-    let send_to_charity = BankMsg::Send { 
-        to_address: charity_address, 
-        amount: vec![coin(to_angel.into(), "uusd")]
-    };
-    let deposit_stable = AnchorExecuteMsg::DepositStable {};
-    let anchor_deposit = WasmMsg::Execute {
-        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
-        msg: to_binary(&deposit_stable)?,
-        funds: vec![coin(ust_amount.into(), "uusd")],
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
 
-    if to_angel == 0 {
-        Ok(Response::new()
-            .add_attribute("new_percentage", new_percentage.to_string())
-            .add_attribute("ust_depositor", depositor)
-            .add_message(anchor_deposit)
-        )
-    } else {
-        Ok(Response::new()
-            .add_attribute("new_percentage", new_percentage.to_string())
-            .add_attribute("ust_depositor", depositor)
-            .add_message(send_to_charity)
-            .add_message(anchor_deposit)
-        )
+    let mut res = Response::new()
+        .add_attribute("new_percentage", new_percentage.to_string())
+        .add_attribute("ust_depositor", depositor);
+    // if going to an Angel Charity add the bank msg
+    if to_angel {
+        res = res.add_message(BankMsg::Send {
+            to_address: charity_address,
+            amount: vec![coin(to_angel.into(), "uusd")],
+        });
     }
+    // add the anchor deposit message last in all cases
+    res = res.add_message(WasmMsg::Execute {
+        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"), // Should not hardcode this! Move to config.
+        msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
+        funds: vec![coin(ust_amount.into(), "uusd")],
+    });
+
+    Ok(res)
 }
 
 pub fn swap_aust_ust(
@@ -139,14 +139,14 @@ pub fn swap_aust_ust(
     info: MessageInfo,
     withdraw_amount: Uint128,
     aust_amount: String,
-    ust_amount: String, 
+    ust_amount: String,
     percentage: String,
-    depositor: String, 
+    depositor: String,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
     let convert_to_ust = get_convert_to_ust(aust_amount.clone());
 
@@ -156,8 +156,7 @@ pub fn swap_aust_ust(
         .add_attribute("ust_depositor", depositor)
         .add_attribute("ust_amount", ust_amount)
         .add_attribute("aust_amount", aust_amount)
-        .add_message(convert_to_ust)
-    )
+        .add_message(convert_to_ust))
 }
 
 pub fn withdraw_send(
@@ -170,57 +169,48 @@ pub fn withdraw_send(
     charity_address: String,
 ) -> Result<Response, ContractError> {
     let redirection_contract = CONFIG.load(deps.storage)?.redirection_contract;
-    let sender = deps.api.addr_validate(&info.sender.to_string())?.to_string();
-    if sender != redirection_contract {
-        return Err(ContractError::Unauthorized{})
+
+    if info.sender.ne(&redirection_contract) {
+        return Err(ContractError::Unauthorized {});
     };
-    let withdraw_to_user = BankMsg::Send { 
-        to_address: ust_depositor.clone(), 
-        amount: vec![coin(withdraw_amount.into(), "uusd")]
+
+    let withdraw_to_user = BankMsg::Send {
+        to_address: ust_depositor.clone(),
+        amount: vec![coin(withdraw_amount.into(), "uusd")],
     };
-    let send_to_charity = BankMsg::Send { 
-        to_address: charity_address, 
-        amount: vec![coin(to_angel_amount.into(), "uusd")]
+    let send_to_charity = BankMsg::Send {
+        to_address: charity_address,
+        amount: vec![coin(to_angel_amount.into(), "uusd")],
     };
-    let deposit_stable = AnchorExecuteMsg::DepositStable {};
     let anchor_deposit = WasmMsg::Execute {
-        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
-        msg: to_binary(&deposit_stable)?,
+        contract_addr: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"), // Should not hardcode this! Move to config.
+        msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
         funds: vec![coin(new_ust_amount.into(), "uusd")],
     };
 
-    if new_ust_amount == 0 {
-        Ok(Response::new()
-            .add_attribute("ust_depositor", ust_depositor)
-            .add_message(withdraw_to_user)
-        )
-    } else if to_angel_amount == 0 {
-        Ok(Response::new()
-            .add_attribute("ust_depositor", ust_depositor)
-            .add_message(withdraw_to_user)
-            .add_message(anchor_deposit)
-        )
-    } else {
-        Ok(Response::new()
-            .add_attribute("ust_depositor", ust_depositor)
-            .add_message(withdraw_to_user)
-            .add_message(send_to_charity)
-            .add_message(anchor_deposit)
-        )
+    let mut res = Response::new()
+        .add_attribute("ust_depositor", ust_depositor)
+        .add_message(withdraw_to_user);
+    if new_ust_amount != 0 {
+        res = res.add_message(send_to_charity);
     }
+    res = res.add_message(anchor_deposit);
+
+    Ok(res)
 }
 
 //Helpers
 fn get_convert_to_ust(aust_amount: String) -> WasmMsg {
     return WasmMsg::Execute {
-        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
+        contract_addr: String::from("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"), // Should not hardcode this! Move to config.
         msg: to_binary(&Cw20ExecuteMsg::Send {
-            contract: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
-            msg: to_binary(&Cw20HookMsg::RedeemStable{}).unwrap(),
-            amount: Uint128::new(aust_amount.parse::<u128>().unwrap())
-        }).unwrap(),
-        funds: Vec::new()
-    }
+            contract: String::from("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"), // Should not hardcode this! Move to config.
+            msg: to_binary(&Cw20HookMsg::RedeemStable {}).unwrap(),
+            amount: Uint128::new(aust_amount.parse::<u128>().unwrap()),
+        })
+        .unwrap(),
+        funds: Vec::new(),
+    };
 }
 /// Requires exactly one native coin sent, which matches UUSD.
 /// Returns the amount if only one denom and non-zero amount. Errors otherwise.

@@ -2,8 +2,6 @@ use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::Config;
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub admin: String,
@@ -15,15 +13,9 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    UpdateConfig {
-        config: Config,
-    },
-    DepositPool {
-        percentage: u16,
-    },
-    WithdrawPool {
-        withdraw_amount: Uint128,
-    },
+    UpdateConfig(UpdateConfigMsg),
+    DepositPool { percentage: u16 },
+    WithdrawPool { withdraw_amount: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,17 +45,25 @@ pub enum EscrowMsg {
     WithdrawInitial {
         withdraw_amount: Uint128,
         aust_amount: String,
-        ust_amount: String, 
+        ust_amount: String,
         percentage: String,
-        depositor: String, 
+        depositor: String,
     },
     WithdrawSend {
         withdraw_amount: u64,
         new_ust_amount: u64,
-        to_angel_amount: u64, 
+        to_angel_amount: u64,
         ust_depositor: String,
         charity_address: String,
-    }
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateConfigMsg {
+    pub admin: String,
+    pub escrow_controller: String,
+    pub charity_address: String,
+    pub theta: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,7 +75,5 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    DepositInfo {
-        address: String,
-    }
+    DepositInfo { address: String },
 }
