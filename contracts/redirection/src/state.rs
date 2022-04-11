@@ -17,6 +17,7 @@ pub struct Pool {
     pub give_percentage: String,
     pub ust_amount: String,
     pub aust_amount: String,
+    pub total_donated: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("state");

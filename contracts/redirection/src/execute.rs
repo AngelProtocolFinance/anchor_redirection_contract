@@ -143,11 +143,25 @@ pub fn make_new_user_struct(
                 }
             }
 
-            let depositor_info = Pool {
-                give_percentage: percentage.clone(),
-                ust_amount: deposit_amount.clone(),
-                aust_amount: mint_amount.clone(),
-            };
+            let depositor_info;
+
+            if !USER_INFO.has(deps.storage, &ust_depositor) {
+                depositor_info = Pool {
+                    give_percentage: percentage.clone(),
+                    ust_amount: deposit_amount.clone(),
+                    aust_amount: mint_amount.clone(),
+                    total_donated: 0,
+                };
+            } else {
+                let total_donated =
+                USER_INFO.load(deps.storage, &ust_depositor)?.total_donated;
+                depositor_info = Pool {
+                    give_percentage: percentage.clone(),
+                    ust_amount: deposit_amount.clone(),
+                    aust_amount: mint_amount.clone(),
+                    total_donated,
+                };
+            }
 
             USER_INFO.save(deps.storage, &ust_depositor, &depositor_info)?;
 
@@ -205,8 +219,6 @@ pub fn get_new_user_state_dep(
                 / (ust_amount + deposit_amount);
 
             Ok(Response::new()
-                .add_attribute("diff", diff.to_string())
-                .add_attribute("to_angel", to_angel.to_string())
                 .add_submessage(SubMsg {
                     id: 2,
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
@@ -239,6 +251,7 @@ pub fn deposit_then_update_user(
             let mut new_percentage = String::from("");
             let mut deposit_amount = String::from("");
             let mut mint_amount = String::from("");
+            let mut to_angel = String::from("");
 
             for event in subcall.events {
                 for attrb in event.attributes {
@@ -250,6 +263,8 @@ pub fn deposit_then_update_user(
                         new_percentage = attrb.value;
                     } else if attrb.key == "ust_depositor" {
                         ust_depositor = attrb.value;
+                    } else if attrb.key == "to_angel" {
+                        to_angel = attrb.value;
                     }
                 }
             }
@@ -258,6 +273,7 @@ pub fn deposit_then_update_user(
             tokens.aust_amount = mint_amount;
             tokens.ust_amount = deposit_amount;
             tokens.give_percentage = new_percentage;
+            tokens.total_donated += to_angel.parse::<u64>().unwrap();
 
             USER_INFO.save(deps.storage, &ust_depositor, &tokens)?;
             Ok(Response::default())
@@ -376,6 +392,7 @@ pub fn withdraw_then_update_user(
             let mut ust_depositor = String::from("");
             let mut deposit_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
             let mut mint_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
+            let mut to_angel = String::from("");
 
             for event in subcall.events {
                 for attrb in event.attributes {
@@ -385,6 +402,8 @@ pub fn withdraw_then_update_user(
                         mint_amount = attrb.value;
                     } else if attrb.key == "ust_depositor" {
                         ust_depositor = attrb.value;
+                    } else if attrb.key == "to_angel" {
+                        to_angel = attrb.value;
                     }
                 }
             }
@@ -397,6 +416,7 @@ pub fn withdraw_then_update_user(
 
             tokens.aust_amount = mint_amount;
             tokens.ust_amount = deposit_amount;
+            tokens.total_donated += to_angel.parse::<u64>().unwrap();
 
             USER_INFO.save(deps.storage, &ust_depositor, &tokens)?;
             Ok(Response::default())
@@ -481,6 +501,7 @@ pub fn swap_back_aust(
     let config = CONFIG.load(deps.storage)?;
 
     let mut res = Response::new()
+        .add_attribute("to_angel", to_angel.to_string())
         .add_attribute("new_percentage", new_percentage.to_string())
         .add_attribute("ust_depositor", depositor);
     // if going to an Angel Charity add the bank msg
@@ -565,6 +586,7 @@ pub fn withdraw_send(
     };
 
     let mut res = Response::new()
+        .add_attribute("to_angel", to_angel_amount.to_string())
         .add_attribute("ust_depositor", ust_depositor)
         .add_message(withdraw_to_user);
     if to_angel_amount != 0 {
