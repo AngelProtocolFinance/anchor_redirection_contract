@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "contracts/escrow",
-    "contracts/redirection",
-]
+members = ["contracts/*"]
 
 exclude = []
 

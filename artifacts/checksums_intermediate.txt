@@ -1,2 +1,1 @@
-bcbb5197e8c68e1220df6e5d9c7704088d7d24d1a5c80c38aa453edba46538f7  target/wasm32-unknown-unknown/release/aust_escrow.wasm
-bab0dbd6e3719c005f05e020327a98d330281c5e0c953e8f37ea9b1677fd6ad6  target/wasm32-unknown-unknown/release/give.wasm
+f6b8a307cee11470612f23d403ada64f9d4327e2ab8703e9cb4aecd331a9bead  ./target/wasm32-unknown-unknown/release/anchor_give_and_earn.wasm

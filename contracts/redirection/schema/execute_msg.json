@@ -9,15 +9,7 @@
       ],
       "properties": {
         "update_config": {
-          "type": "object",
-          "required": [
-            "config"
-          ],
-          "properties": {
-            "config": {
-              "$ref": "#/definitions/Config"
-            }
-          }
+          "$ref": "#/definitions/Config"
         }
       },
       "additionalProperties": false
@@ -63,26 +55,220 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_initial"
+      ],
+      "properties": {
+        "deposit_initial": {
+          "type": "object",
+          "required": [
+            "depositor",
+            "percentage",
+            "ust_sent"
+          ],
+          "properties": {
+            "depositor": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "integer",
+              "format": "uint16",
+              "minimum": 0.0
+            },
+            "ust_sent": {
+              "type": "integer",
+              "format": "uint128",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_more"
+      ],
+      "properties": {
+        "deposit_more": {
+          "type": "object",
+          "required": [
+            "aust_amount",
+            "depositor",
+            "percentage",
+            "ust_sent"
+          ],
+          "properties": {
+            "aust_amount": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "integer",
+              "format": "uint16",
+              "minimum": 0.0
+            },
+            "ust_sent": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "swap_back_update"
+      ],
+      "properties": {
+        "swap_back_update": {
+          "type": "object",
+          "required": [
+            "charity_address",
+            "depositor",
+            "new_percentage",
+            "to_angel",
+            "ust_amount"
+          ],
+          "properties": {
+            "charity_address": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "new_percentage": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_angel": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "ust_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdraw_initial"
+      ],
+      "properties": {
+        "withdraw_initial": {
+          "type": "object",
+          "required": [
+            "aust_amount",
+            "depositor",
+            "percentage",
+            "ust_amount",
+            "withdraw_amount"
+          ],
+          "properties": {
+            "aust_amount": {
+              "type": "string"
+            },
+            "depositor": {
+              "type": "string"
+            },
+            "percentage": {
+              "type": "string"
+            },
+            "ust_amount": {
+              "type": "string"
+            },
+            "withdraw_amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdraw_send"
+      ],
+      "properties": {
+        "withdraw_send": {
+          "type": "object",
+          "required": [
+            "charity_address",
+            "new_ust_amount",
+            "to_angel_amount",
+            "ust_depositor",
+            "withdraw_amount"
+          ],
+          "properties": {
+            "charity_address": {
+              "type": "string"
+            },
+            "new_ust_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_angel_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "ust_depositor": {
+              "type": "string"
+            },
+            "withdraw_amount": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
+    "Addr": {
+      "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+      "type": "string"
+    },
     "Config": {
       "type": "object",
       "required": [
         "admin",
+        "anchor_market_address",
+        "aust_token_address",
         "charity_address",
-        "escrow_controller",
         "theta"
       ],
       "properties": {
         "admin": {
-          "type": "string"
+          "$ref": "#/definitions/Addr"
+        },
+        "anchor_market_address": {
+          "$ref": "#/definitions/Addr"
+        },
+        "aust_token_address": {
+          "$ref": "#/definitions/Addr"
         },
         "charity_address": {
-          "type": "string"
-        },
-        "escrow_controller": {
-          "type": "string"
+          "$ref": "#/definitions/Addr"
         },
         "theta": {
           "type": "integer",
