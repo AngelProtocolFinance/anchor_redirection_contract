@@ -14,9 +14,9 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Pool {
-    pub give_percentage: String,
-    pub ust_amount: String,
-    pub aust_amount: String,
+    pub give_percentage: u16,
+    pub ust_amount: u64,
+    pub aust_amount: u64,
     pub total_donated: u64,
 }
 

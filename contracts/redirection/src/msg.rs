@@ -6,7 +6,7 @@ use crate::state::Config;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub admin: String,
+    pub admin: Addr,
     pub charity_address: Addr,
     pub anchor_market_address: Addr,
     pub aust_token_address: Addr,
@@ -22,34 +22,34 @@ pub enum ExecuteMsg {
     InternalDepositInitial {
         ust_sent: Uint128,
         percentage: u16,
-        depositor: String,
+        depositor: Addr,
     },
     InternalDepositMore {
         ust_sent: Uint128,
-        aust_amount: String,
+        aust_amount: u64,
         percentage: u16,
-        depositor: String,
+        depositor: Addr,
     },
     InternalSwapBackUpdate {
         to_angel: u64,
-        charity_address: String,
+        charity_address: Addr,
         ust_amount: u64,
-        new_percentage: u64,
-        depositor: String,
+        new_percentage: u16,
+        depositor: Addr,
     },
     InternalWithdrawInitial {
         withdraw_amount: Uint128,
-        aust_amount: String,
-        ust_amount: String,
-        percentage: String,
-        depositor: String,
+        aust_amount: u64,
+        ust_amount: u64,
+        percentage: u16,
+        depositor: Addr,
     },
     InternalWithdrawSend {
         withdraw_amount: u64,
         new_ust_amount: u64,
         to_angel_amount: u64,
-        ust_depositor: String,
-        charity_address: String,
+        ust_depositor: Addr,
+        charity_address: Addr,
     },
 }
 

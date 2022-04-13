@@ -1,16 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Reply, Response, Uint128};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Reply, Response};
 use cw2::set_contract_version;
 
-use crate::error::ContractError;
-use crate::execute::{
-    check_funds, deposit_then_update_user, get_new_user_state_dep, get_new_user_state_wit,
-    make_new_deposit, make_new_user_struct, send_dust_to_angel_then_make_new_deposit,
-    update_config, update_deposit, withdraw_deposit, withdraw_then_update_user, deposit_initial, deposit_more, swap_back_aust, swap_aust_ust, withdraw_send,
+use crate::execute::{update_config, deposit_pool, withdraw_pool};
+use crate::internal_calls::{
+    deposit_initial, deposit_more, swap_back_aust, 
+    swap_aust_ust, withdraw_send
 };
+use crate::replies::{
+    make_new_user_struct, deposit_then_update_user, 
+    get_new_user_state_dep, get_new_user_state_wit, 
+    withdraw_then_update_user
+};
+
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::state::{Config, CONFIG, USER_INFO};
+use crate::state::{Config, CONFIG};
+use crate::error::ContractError;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:give";
@@ -28,7 +34,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            admin: deps.api.addr_validate(&msg.admin)?,
+            admin: deps.api.addr_validate(&msg.admin.to_string())?,
             charity_address: deps.api.addr_validate(&msg.charity_address.to_string())?,
             anchor_market_address: deps.api.addr_validate(&msg.anchor_market_address.to_string())?,
             aust_token_address: deps.api.addr_validate(&msg.aust_token_address.to_string())?,
@@ -59,9 +65,13 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        /* Three Entry Points */
         ExecuteMsg::UpdateConfig(msg) => update_config(deps, info, msg),
         ExecuteMsg::DepositPool { percentage } => deposit_pool(deps, env, info, percentage),
         ExecuteMsg::WithdrawPool { withdraw_amount } => withdraw_pool(deps, env, info, withdraw_amount),
+        /* Three Entry Points */
+        
+        /* Internal Contract Calls */
         ExecuteMsg::InternalDepositInitial {
             ust_sent,
             percentage,
@@ -121,83 +131,8 @@ pub fn execute(
             ust_depositor,
             charity_address,
         ),
+        /* Internal Contract Calls */
     }
-}
-
-pub fn deposit_pool(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    percentage: u16,
-) -> Result<Response, ContractError> {
-    if percentage < 5 || percentage > 100 {
-        return Err(ContractError::WrongPercentageInput {});
-    };
-
-    let ust_sent = check_funds(&info)?;
-    if ust_sent.u128() < 1000 {
-        return Err(ContractError::MakeNewPoolError {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-
-    // If no user exists, create a new deposit for them
-    if !USER_INFO.has(deps.storage, info.sender.as_str()) {
-        make_new_deposit(
-            env,
-            info.sender.to_string(),
-            percentage,
-            ust_sent,
-        )
-    } else {
-        let user_info = USER_INFO.load(deps.storage, info.sender.as_str())?;
-        let aust_amount = user_info.aust_amount.parse::<u64>().unwrap();
-        if aust_amount == 0 {
-            make_new_deposit(
-                env,
-                info.sender.to_string(),
-                percentage,
-                ust_sent,
-            )
-        } else if aust_amount <= config.theta {
-            /*
-             * Theta: Should be capped around 0.001 aUST.
-             * When a user withdraws, it leaves tiny bits of dust
-             * Triggering update deposit over < 0.001 aUST balance is a waste of gas
-             * Added to save fees and keep escrow aUST balance as clean as possible.
-             */
-            send_dust_to_angel_then_make_new_deposit(
-                deps,
-                env,
-                info.sender.to_string(),
-                percentage,
-                ust_sent,
-                user_info,
-            )
-        } else {
-            update_deposit(
-                env,
-                ust_sent,
-                info.sender.to_string(),
-                percentage,
-                user_info.aust_amount,
-            )
-        }
-    }
-}
-
-pub fn withdraw_pool(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    let depositor = deps.api.addr_validate(&info.sender.as_str())?;
-    if !USER_INFO.has(deps.storage, depositor.as_str()) {
-        return Err(ContractError::NoDeposit {});
-    }
-
-    withdraw_deposit(deps, env, amount, depositor.to_string())
 }
 
 #[cfg(test)]

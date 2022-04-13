@@ -1,12 +1,12 @@
 use crate::{
-    error::PaymentError,
-    msg::{AnchorExecuteMsg, Cw20HookMsg, ExecuteMsg},
+    msg::ExecuteMsg,
     state::{Pool, CONFIG, USER_INFO, Config},
-    ContractError,
+    ContractError, helpers::check_funds,
 };
 use cosmwasm_std::{
-    coin, to_binary, ContractResult, CosmosMsg, DepsMut, Env, MessageInfo, ReplyOn, Response,
-    SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg, BankMsg,
+    to_binary, CosmosMsg, DepsMut, Env,
+    MessageInfo, ReplyOn, Response,
+    SubMsg, Uint128, WasmMsg, Addr,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -26,9 +26,85 @@ pub fn update_config(
     Ok(Response::default())
 }
 
+pub fn deposit_pool(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    percentage: u16,
+) -> Result<Response, ContractError> {
+    if percentage < 5 || percentage > 100 {
+        return Err(ContractError::WrongPercentageInput {});
+    };
+
+    let ust_sent = check_funds(&info)?;
+    if ust_sent.u128() < 1000 {
+        return Err(ContractError::MakeNewPoolError {});
+    };
+
+    let config = CONFIG.load(deps.storage)?;
+
+    // If no user exists, create a new deposit for them
+    if !USER_INFO.has(deps.storage, info.sender.as_str()) {
+        make_new_deposit(
+            env,
+            info.sender,
+            percentage,
+            ust_sent,
+        )
+    } else {
+        let user_info = USER_INFO.load(deps.storage, info.sender.as_str())?;
+        let aust_amount = user_info.aust_amount;
+        if aust_amount == 0 {
+            make_new_deposit(
+                env,
+                info.sender,
+                percentage,
+                ust_sent,
+            )
+        } else if aust_amount <= config.theta {
+            /*
+             * Theta: Should be capped around 0.001 aUST.
+             * When a user withdraws, it leaves tiny bits of dust
+             * Triggering update deposit over < 0.001 aUST balance is a waste of gas
+             * Added to save fees and keep escrow aUST balance as clean as possible.
+             */
+            send_dust_to_angel_then_make_new_deposit(
+                deps,
+                env,
+                info.sender,
+                percentage,
+                ust_sent,
+                user_info,
+            )
+        } else {
+            update_deposit(
+                env,
+                ust_sent,
+                info.sender,
+                percentage,
+                user_info.aust_amount,
+            )
+        }
+    }
+}
+
+pub fn withdraw_pool(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let depositor = deps.api.addr_validate(&info.sender.as_str())?;
+    if !USER_INFO.has(deps.storage, depositor.as_str()) {
+        return Err(ContractError::NoDeposit {});
+    }
+
+    withdraw_deposit(deps, env, amount, depositor)
+}
+
 pub fn make_new_deposit(
     env: Env,
-    depositor: String,
+    depositor: Addr,
     percentage: u16,
     ust_sent: Uint128,
 ) -> Result<Response, ContractError> {
@@ -51,7 +127,7 @@ pub fn make_new_deposit(
 pub fn send_dust_to_angel_then_make_new_deposit(
     deps: DepsMut,
     env: Env,
-    depositor: String,
+    depositor: Addr,
     percentage: u16,
     ust_sent: Uint128,
     user_info: Pool,
@@ -74,17 +150,17 @@ pub fn send_dust_to_angel_then_make_new_deposit(
     };
 
     let mut new_user_info = user_info.clone();
-    new_user_info.aust_amount = String::from("0");
-    new_user_info.ust_amount = String::from("0");
+    new_user_info.aust_amount = 0u64;
+    new_user_info.ust_amount = 0u64;
 
-    USER_INFO.save(deps.storage, &depositor, &new_user_info)?;
+    USER_INFO.save(deps.storage, &depositor.to_string(), &new_user_info)?;
 
     Ok(Response::new()
         .add_message(WasmMsg::Execute {
         contract_addr: config.aust_token_address.to_string(), // Should not hardcode this! Move to config.
         msg: to_binary(&Cw20ExecuteMsg::Transfer {
             recipient: config.charity_address.to_string(),
-            amount: Uint128::from(user_info.aust_amount.parse::<u64>().unwrap()),
+            amount: Uint128::from(user_info.aust_amount),
         })
         .unwrap(),
         funds: Vec::new(),
@@ -95,9 +171,9 @@ pub fn send_dust_to_angel_then_make_new_deposit(
 pub fn update_deposit(
     env: Env,
     ust_sent: Uint128,
-    depositor: String,
+    depositor: Addr,
     percentage: u16,
-    aust_amount: String,
+    aust_amount: u64,
 ) -> Result<Response, ContractError> {
     Ok(Response::new().add_submessage(SubMsg {
         id: 1,
@@ -116,180 +192,13 @@ pub fn update_deposit(
     }))
 }
 
-/* Submessage Reply Functions */
-pub fn make_new_user_struct(
-    deps: DepsMut,
-    _env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    match msg {
-        ContractResult::Ok(subcall) => {
-            let mut ust_depositor = String::from("");
-            let mut percentage = String::from("");
-            let mut deposit_amount = String::from("");
-            let mut mint_amount = String::from("");
-
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "deposit_amount" {
-                        deposit_amount = attrb.value;
-                    } else if attrb.key == "mint_amount" {
-                        mint_amount = attrb.value;
-                    } else if attrb.key == "percentage" {
-                        percentage = attrb.value;
-                    } else if attrb.key == "ust_depositor" {
-                        ust_depositor = attrb.value;
-                    }
-                }
-            }
-
-            let depositor_info;
-
-            if !USER_INFO.has(deps.storage, &ust_depositor) {
-                depositor_info = Pool {
-                    give_percentage: percentage.clone(),
-                    ust_amount: deposit_amount.clone(),
-                    aust_amount: mint_amount.clone(),
-                    total_donated: 0,
-                };
-            } else {
-                let total_donated =
-                USER_INFO.load(deps.storage, &ust_depositor)?.total_donated;
-                depositor_info = Pool {
-                    give_percentage: percentage.clone(),
-                    ust_amount: deposit_amount.clone(),
-                    aust_amount: mint_amount.clone(),
-                    total_donated,
-                };
-            }
-
-            USER_INFO.save(deps.storage, &ust_depositor, &depositor_info)?;
-
-            Ok(Response::new()
-                .add_attribute("give_percentage", percentage)
-                .add_attribute("ust_amount", deposit_amount)
-                .add_attribute("aust_amount", mint_amount))
-        }
-        ContractResult::Err(_) => Err(ContractError::Unauthorized {}),
-    }
-}
-
-pub fn get_new_user_state_dep(
-    deps: DepsMut,
-    env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    match msg {
-        ContractResult::Ok(subcall) => {
-            let mut ust_depositor = String::from("");
-            let mut percentage = 0;
-            let mut deposit_amount = 0;
-            let mut redeem_amount = 0;
-
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "ust_sent" {
-                        deposit_amount = attrb.value.parse::<u64>().unwrap();
-                    } else if attrb.key == "redeem_amount" {
-                        redeem_amount = attrb.value.parse::<u64>().unwrap();
-                    } else if attrb.key == "percentage" {
-                        percentage = attrb.value.parse::<u64>().unwrap();
-                    } else if attrb.key == "ust_depositor" {
-                        ust_depositor = attrb.value;
-                    }
-                }
-            }
-
-            let user_info = USER_INFO.load(deps.storage, &ust_depositor)?;
-            let config = CONFIG.load(deps.storage)?;
-            let ust_amount = user_info.ust_amount.parse::<u64>().unwrap();
-            let prev_percentage = user_info.give_percentage.parse::<u64>().unwrap();
-
-            let diff;
-            if ust_amount > redeem_amount {
-                diff = 0;
-            } else {
-                diff = redeem_amount - ust_amount;
-            }
-
-            let to_angel = (diff * prev_percentage) / 100;
-
-            let new_ust_amount = redeem_amount + deposit_amount - to_angel;
-            let new_percentage = ((ust_amount * prev_percentage) + (deposit_amount * percentage))
-                / (ust_amount + deposit_amount);
-
-            Ok(Response::new()
-                .add_submessage(SubMsg {
-                    id: 2,
-                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: env.contract.address.to_string(),
-                        msg: to_binary(&ExecuteMsg::InternalSwapBackUpdate {
-                            to_angel,
-                            charity_address: config.charity_address.to_string(),
-                            ust_amount: new_ust_amount,
-                            new_percentage,
-                            depositor: ust_depositor,
-                        })?,
-                        funds: vec![coin(deposit_amount.into(), "uusd")],
-                    }),
-                    gas_limit: None,
-                    reply_on: ReplyOn::Success,
-                }))
-        }
-        ContractResult::Err(_) => Err(ContractError::Unauthorized {}),
-    }
-}
-
-pub fn deposit_then_update_user(
-    deps: DepsMut,
-    _env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    match msg {
-        ContractResult::Ok(subcall) => {
-            let mut ust_depositor = String::from("");
-            let mut new_percentage = String::from("");
-            let mut deposit_amount = String::from("");
-            let mut mint_amount = String::from("");
-            let mut to_angel = String::from("");
-
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "deposit_amount" {
-                        deposit_amount = attrb.value;
-                    } else if attrb.key == "mint_amount" {
-                        mint_amount = attrb.value;
-                    } else if attrb.key == "new_percentage" {
-                        new_percentage = attrb.value;
-                    } else if attrb.key == "ust_depositor" {
-                        ust_depositor = attrb.value;
-                    } else if attrb.key == "to_angel" {
-                        to_angel = attrb.value;
-                    }
-                }
-            }
-
-            let mut tokens = USER_INFO.load(deps.storage, &ust_depositor)?;
-            tokens.aust_amount = mint_amount;
-            tokens.ust_amount = deposit_amount;
-            tokens.give_percentage = new_percentage;
-            tokens.total_donated += to_angel.parse::<u64>().unwrap();
-
-            USER_INFO.save(deps.storage, &ust_depositor, &tokens)?;
-            Ok(Response::default())
-        }
-        ContractResult::Err(_) => Err(ContractError::Unauthorized {}),
-    }
-}
-
-//Withdraws
 pub fn withdraw_deposit(
     deps: DepsMut,
     env: Env,
     withdraw_amount: Uint128,
-    depositor: String,
+    depositor: Addr,
 ) -> Result<Response, ContractError> {
-    let user_info = USER_INFO.load(deps.storage, &depositor)?;
+    let user_info = USER_INFO.load(deps.storage, &depositor.to_string())?;
     let aust_amount = user_info.aust_amount;
     let ust_amount = user_info.ust_amount;
     let percentage = user_info.give_percentage;
@@ -310,332 +219,4 @@ pub fn withdraw_deposit(
         gas_limit: None,
         reply_on: ReplyOn::Success,
     }))
-}
-
-pub fn get_new_user_state_wit(
-    deps: DepsMut,
-    env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    match msg {
-        ContractResult::Ok(subcall) => {
-            let mut ust_depositor = String::from("");
-            let mut redeem_amount = 0;
-            let mut withdraw_amount = 0;
-            let mut ust_amount = 0;
-
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "redeem_amount" {
-                        redeem_amount = attrb.value.parse::<u64>().unwrap();
-                    } else if attrb.key == "withdraw_amount" {
-                        withdraw_amount = attrb.value.parse::<u64>().unwrap();
-                    } else if attrb.key == "ust_depositor" {
-                        ust_depositor = attrb.value;
-                    } else if attrb.key == "ust_amount" {
-                        ust_amount = attrb.value.parse::<u64>().unwrap();
-                    }
-                }
-            }
-
-            let percentage = USER_INFO
-                .load(deps.storage, &ust_depositor)?
-                .give_percentage
-                .parse::<u64>()
-                .unwrap();
-
-            let diff;
-            if ust_amount > redeem_amount {
-                diff = 0;
-            } else {
-                diff = redeem_amount - ust_amount;
-            }
-
-            let to_angel_amount = (diff * percentage) / 100;
-            let max_withdrawable = redeem_amount - to_angel_amount;
-
-            if withdraw_amount > max_withdrawable {
-                withdraw_amount = max_withdrawable;
-            };
-
-            let new_ust_amount = redeem_amount - to_angel_amount - withdraw_amount;
-            let config = CONFIG.load(deps.storage)?;
-
-            Ok(Response::new().add_submessage(SubMsg {
-                id: 4,
-                msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::InternalWithdrawSend {
-                        withdraw_amount,
-                        new_ust_amount,
-                        to_angel_amount,
-                        ust_depositor,
-                        charity_address: config.charity_address.to_string(),
-                    })?,
-                    funds: vec![],
-                }),
-                gas_limit: None,
-                reply_on: ReplyOn::Success,
-            }))
-        }
-        ContractResult::Err(_) => Err(ContractError::Unauthorized {}),
-    }
-}
-
-pub fn withdraw_then_update_user(
-    deps: DepsMut,
-    _env: Env,
-    msg: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    match msg {
-        ContractResult::Ok(subcall) => {
-            let mut ust_depositor = String::from("");
-            let mut deposit_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
-            let mut mint_amount = String::from("0"); //in case the anchor_deposit doesn't trigger
-            let mut to_angel = String::from("");
-
-            for event in subcall.events {
-                for attrb in event.attributes {
-                    if attrb.key == "deposit_amount" {
-                        deposit_amount = attrb.value;
-                    } else if attrb.key == "mint_amount" {
-                        mint_amount = attrb.value;
-                    } else if attrb.key == "ust_depositor" {
-                        ust_depositor = attrb.value;
-                    } else if attrb.key == "to_angel" {
-                        to_angel = attrb.value;
-                    }
-                }
-            }
-
-            let mut tokens = USER_INFO.load(deps.storage, &ust_depositor)?;
-            let config = CONFIG.load(deps.storage)?;
-            if mint_amount.parse::<u64>().unwrap() < config.theta {
-                tokens.give_percentage = String::from("0");
-            }
-
-            tokens.aust_amount = mint_amount;
-            tokens.ust_amount = deposit_amount;
-            tokens.total_donated += to_angel.parse::<u64>().unwrap();
-
-            USER_INFO.save(deps.storage, &ust_depositor, &tokens)?;
-            Ok(Response::default())
-        }
-        ContractResult::Err(_) => Err(ContractError::Unauthorized {}),
-    }
-}
-
-/* Internal Functions */
-pub fn deposit_initial(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    ust_sent: Uint128,
-    percentage: u16,
-    depositor: String,
-) -> Result<Response, ContractError> {
-    if info.sender.ne(&env.contract.address) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let deposit_stable = AnchorExecuteMsg::DepositStable {};
-    let anchor_deposit = WasmMsg::Execute {
-        contract_addr: config.anchor_market_address.to_string(),
-        msg: to_binary(&deposit_stable)?,
-        funds: vec![coin(ust_sent.u128(), "uusd")],
-    };
-
-    Ok(Response::new()
-        .add_attribute("percentage", percentage.to_string())
-        .add_attribute("ust_depositor", depositor)
-        .add_message(anchor_deposit))
-}
-
-pub fn deposit_more(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    ust_sent: Uint128,
-    aust_amount: String,
-    percentage: u16,
-    depositor: String,
-) -> Result<Response, ContractError> {
-    if info.sender.ne(&env.contract.address) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-    let anchor_market_address = config.anchor_market_address.to_string();
-    let aust_token_address = config.aust_token_address.to_string();
-
-    let convert_to_ust = 
-    get_convert_to_ust(
-        anchor_market_address, 
-        aust_token_address, 
-        aust_amount.clone()
-    );
-
-    Ok(Response::new()
-        .add_attribute("ust_sent", ust_sent)
-        .add_attribute("percentage", percentage.to_string())
-        .add_attribute("ust_depositor", depositor)
-        .add_message(convert_to_ust))
-}
-
-pub fn swap_back_aust(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    to_angel: u64,
-    charity_address: String,
-    ust_amount: u64,
-    new_percentage: u64,
-    depositor: String,
-) -> Result<Response, ContractError> {
-    if info.sender.ne(&env.contract.address) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let mut res = Response::new()
-        .add_attribute("to_angel", to_angel.to_string())
-        .add_attribute("new_percentage", new_percentage.to_string())
-        .add_attribute("ust_depositor", depositor);
-    // if going to an Angel Charity add the bank msg
-    if to_angel != 0 {
-        res = res.add_message(BankMsg::Send {
-            to_address: charity_address,
-            amount: vec![coin(to_angel.into(), "uusd")],
-        });
-    }
-    // add the anchor deposit message last in all cases
-    res = res.add_message(WasmMsg::Execute {
-        contract_addr: config.anchor_market_address.to_string(),
-        msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
-        funds: vec![coin(ust_amount.into(), "uusd")],
-    });
-
-    Ok(res)
-}
-
-pub fn swap_aust_ust(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    withdraw_amount: Uint128,
-    aust_amount: String,
-    ust_amount: String,
-    percentage: String,
-    depositor: String,
-) -> Result<Response, ContractError> {
-    if info.sender.ne(&env.contract.address) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-    let anchor_market_address = config.anchor_market_address.to_string();
-    let aust_token_address = config.aust_token_address.to_string();
-
-    let convert_to_ust = 
-    get_convert_to_ust(
-        anchor_market_address, 
-        aust_token_address, 
-        aust_amount.clone()
-    );
-
-    Ok(Response::new()
-        .add_attribute("withdraw_amount", withdraw_amount)
-        .add_attribute("percentage", percentage)
-        .add_attribute("ust_depositor", depositor)
-        .add_attribute("ust_amount", ust_amount)
-        .add_attribute("aust_amount", aust_amount)
-        .add_message(convert_to_ust))
-}
-
-pub fn withdraw_send(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    withdraw_amount: u64,
-    new_ust_amount: u64,
-    to_angel_amount: u64,
-    ust_depositor: String,
-    charity_address: String,
-) -> Result<Response, ContractError> {
-    if info.sender.ne(&env.contract.address) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let withdraw_to_user = BankMsg::Send {
-        to_address: ust_depositor.clone(),
-        amount: vec![coin(withdraw_amount.into(), "uusd")],
-    };
-    let send_to_charity = BankMsg::Send {
-        to_address: charity_address,
-        amount: vec![coin(to_angel_amount.into(), "uusd")],
-    };
-    let anchor_deposit = WasmMsg::Execute {
-        contract_addr: config.anchor_market_address.to_string(),
-        msg: to_binary(&AnchorExecuteMsg::DepositStable {})?,
-        funds: vec![coin(new_ust_amount.into(), "uusd")],
-    };
-
-    let mut res = Response::new()
-        .add_attribute("to_angel", to_angel_amount.to_string())
-        .add_attribute("ust_depositor", ust_depositor)
-        .add_message(withdraw_to_user);
-    if to_angel_amount != 0 {
-        res = res.add_message(send_to_charity);
-    }
-    if new_ust_amount != 0 {
-        res = res.add_message(anchor_deposit);
-    }
-
-    Ok(res)
-}
-
-//Helpers
-fn get_convert_to_ust(
-    anchor_market_address: String,
-    aust_token_address: String,
-    aust_amount: String
-) -> WasmMsg {
-    return WasmMsg::Execute {
-        contract_addr: aust_token_address, // Should not hardcode this! Move to config.
-        msg: to_binary(&Cw20ExecuteMsg::Send {
-            contract: anchor_market_address, // Should not hardcode this! Move to config.
-            msg: to_binary(&Cw20HookMsg::RedeemStable {}).unwrap(),
-            amount: Uint128::new(aust_amount.parse::<u128>().unwrap()),
-        })
-        .unwrap(),
-        funds: Vec::new(),
-    };
-}
-
-/* Helpers */
-/// Requires exactly one native coin sent, which matches UUSD.
-/// Returns the amount if only one denom and non-zero amount. Errors otherwise.
-pub fn check_funds(info: &MessageInfo) -> Result<Uint128, PaymentError> {
-    // check if only one coin was sent
-    match info.funds.len() {
-        0 => Err(PaymentError::NoFunds {}),
-        1 => {
-            let coin = info.funds[0].clone();
-            // check that we rcv'd uusd
-            if coin.denom != "uusd" {
-                return Err(PaymentError::MissingDenom(coin.denom.to_string()));
-            }
-            // check amount is gte 0
-            if coin.amount.is_zero() {
-                return Err(PaymentError::NoFunds {});
-            }
-            Ok(coin.amount)
-        }
-        _ => Err(PaymentError::MultipleDenoms {}),
-    }
 }
