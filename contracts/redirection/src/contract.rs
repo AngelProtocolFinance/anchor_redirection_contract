@@ -134,6 +134,3 @@ pub fn execute(
         /* Internal Contract Calls */
     }
 }
-
-#[cfg(test)]
-mod tests {}
