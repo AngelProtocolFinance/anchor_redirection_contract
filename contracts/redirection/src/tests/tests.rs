@@ -4,8 +4,7 @@ use crate::ContractError;
 use crate::contract::execute;
 use crate::{msg::InstantiateMsg, contract::instantiate};
 
-use crate::msg::{QueryMsg, ExecuteMsg};
-use crate::query::query;
+use crate::msg::ExecuteMsg;
 
 #[test]
 fn proper_initialization() {
@@ -42,4 +41,10 @@ fn deposit_new_pool() {
     
     //should throw low coin error;
     assert_eq!(ContractError::MakeNewPoolError {}, res.unwrap_err());
+
+    let info = mock_info(sample_addr.as_ref(), &coins(10000000, "uusd"));
+    let msg = ExecuteMsg::DepositPool { percentage: 50 };
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();  
+
+    assert_eq!(0, res.messages.len());
 }
